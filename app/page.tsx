@@ -900,7 +900,13 @@ export default function Home() {
         className={`sidebar ${sidebarOpen ? "open" : ""}`}
       >
         <div className="sidebar-head">
-          <div className="brand-row" aria-hidden="true" />
+          <div className="brand-row">
+            <div className="brand-mark small">T</div>
+            <div>
+              <strong>ThaiBan AI</strong>
+              <span>พื้นที่ส่วนตัว · V1.1</span>
+            </div>
+          </div>
           <button
             type="button"
             aria-label="ปิดเมนู"
