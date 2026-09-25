@@ -2570,3 +2570,29 @@ body,
 .topbar > .icon-button.topbar-settings {
   grid-area: settings !important;
 }
+
+
+/* Sidebar brand spacing polish */
+.sidebar-head {
+  padding-top: 30px !important;
+  padding-bottom: 16px !important;
+}
+.brand-row {
+  gap: 10px !important;
+}
+.brand-row strong {
+  font-size: 16px !important;
+  font-weight: 650 !important;
+  line-height: 1.25 !important;
+}
+.brand-row span {
+  margin-top: 3px;
+  font-size: 11px !important;
+  line-height: 1.3 !important;
+}
+
+@media (max-width: 900px) {
+  .sidebar-head {
+    padding-top: calc(env(safe-area-inset-top) + 24px) !important;
+  }
+}
