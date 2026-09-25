@@ -20,12 +20,20 @@ type ImageAttachment = {
   type: string;
 };
 
+type TextFileAttachment = {
+  name: string;
+  type: string;
+  size: number;
+  content: string;
+};
+
 type Message = {
   id: string;
   role: Role;
   content: string;
   createdAt: number;
   image?: ImageAttachment;
+  file?: TextFileAttachment;
 };
 
 type Conversation = {
@@ -175,6 +183,7 @@ export default function Home() {
   const [modelsError, setModelsError] = useState("");
   const [input, setInput] = useState("");
   const [pendingImage, setPendingImage] = useState<ImageAttachment | null>(null);
+  const [pendingFile, setPendingFile] = useState<TextFileAttachment | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -190,6 +199,7 @@ export default function Home() {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const activeConversation = useMemo(
     () =>
@@ -584,7 +594,9 @@ export default function Home() {
                     image_url: { url: message.image.dataUrl },
                   },
                 ]
-              : message.content,
+              : message.role === "user" && message.file
+                ? `${message.content.trim() || "ช่วยวิเคราะห์ไฟล์นี้"}\n\n--- ไฟล์: ${message.file.name} ---\n${message.file.content}\n--- จบไฟล์ ---`
+                : message.content,
         })),
       ];
 
@@ -713,7 +725,7 @@ export default function Home() {
   async function sendMessage() {
     const content = input.trim();
     const chat = activeConversation;
-    if ((!content && !pendingImage) || !chat || streaming) return;
+    if ((!content && !pendingImage && !pendingFile) || !chat || streaming) return;
 
     if (!settings.model) {
       setNotice(modelsError || "ยังไม่มีโมเดลที่พร้อมใช้งาน");
@@ -723,12 +735,16 @@ export default function Home() {
     const userMessage: Message = {
       id: uid(),
       role: "user",
-      content: content || "ช่วยวิเคราะห์รูปภาพนี้",
+      content:
+        content ||
+        (pendingFile ? "ช่วยวิเคราะห์ไฟล์นี้" : "ช่วยวิเคราะห์รูปภาพนี้"),
       createdAt: Date.now(),
       image: pendingImage ?? undefined,
+      file: pendingFile ?? undefined,
     };
     const nextMessages = [...chat.messages, userMessage];
-    const titleSource = content || (pendingImage ? "รูปภาพ" : "");
+    const titleSource =
+      content || (pendingFile ? pendingFile.name : pendingImage ? "รูปภาพ" : "");
     const title =
       chat.messages.length === 0
         ? titleSource.replace(/\s+/g, " ").slice(0, 36) || "แชตใหม่"
@@ -737,6 +753,7 @@ export default function Home() {
     followRef.current = true;
     setInput("");
     setPendingImage(null);
+    setPendingFile(null);
     patchConversation(chat.id, (item) => ({
       ...item,
       title,
@@ -1085,6 +1102,15 @@ export default function Home() {
                         alt={message.image.name || "รูปภาพที่แนบ"}
                       />
                     ) : null}
+                    {message.role === "user" && message.file ? (
+                      <div className="chat-file">
+                        <span className="file-icon">DOC</span>
+                        <span>
+                          <strong>{message.file.name}</strong>
+                          <small>{Math.max(1, Math.ceil(message.file.size / 1024))} KB</small>
+                        </span>
+                      </div>
+                    ) : null}
                     {message.role === "assistant" ? (
                       message.content ? (
                         <Markdown onCopy={copyText}>{message.content}</Markdown>
@@ -1121,6 +1147,23 @@ export default function Home() {
             <button className="regen-button" type="button" onClick={regenerate}>
               ↻ สร้างคำตอบใหม่
             </button>
+          ) : null}
+
+          {pendingFile ? (
+            <div className="file-preview">
+              <span className="file-icon">DOC</span>
+              <div>
+                <strong>{pendingFile.name}</strong>
+                <span>{Math.max(1, Math.ceil(pendingFile.size / 1024))} KB · พร้อมส่งให้ AI อ่าน</span>
+              </div>
+              <button
+                type="button"
+                aria-label="ลบไฟล์"
+                onClick={() => setPendingFile(null)}
+              >
+                ×
+              </button>
+            </div>
           ) : null}
 
           {pendingImage ? (
@@ -1173,13 +1216,52 @@ export default function Home() {
                 reader.readAsDataURL(file);
               }}
             />
+            <input
+              ref={fileInputRef}
+              className="image-input"
+              type="file"
+              accept=".txt,.md,.json,.csv,.html,.htm,.css,.js,.jsx,.ts,.tsx,.py,.php,text/plain,text/markdown,text/csv,application/json"
+              aria-label="แนบไฟล์"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (!file) return;
+                const extension = file.name.split(".").pop()?.toLowerCase() || "";
+                const allowed = new Set([
+                  "txt", "md", "json", "csv", "html", "htm", "css",
+                  "js", "jsx", "ts", "tsx", "py", "php",
+                ]);
+                if (!allowed.has(extension)) {
+                  setNotice("รองรับ TXT, MD, JSON, CSV, HTML, CSS, JS, TS, Python และ PHP");
+                  return;
+                }
+                if (file.size > 1024 * 1024) {
+                  setNotice("ไฟล์ต้องมีขนาดไม่เกิน 1 MB");
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                  if (typeof reader.result !== "string") return;
+                  setPendingFile({
+                    name: file.name,
+                    type: file.type || "text/plain",
+                    size: file.size,
+                    content: reader.result,
+                  });
+                  setPendingImage(null);
+                  setNotice("");
+                };
+                reader.onerror = () => setNotice("อ่านไฟล์ไม่สำเร็จ กรุณาลองใหม่");
+                reader.readAsText(file);
+              }}
+            />
             <button
               className="attach-button"
               type="button"
-              aria-label="แนบรูปภาพ"
-              title="แนบรูปภาพ"
+              aria-label="แนบไฟล์"
+              title="แนบไฟล์"
               disabled={streaming}
-              onClick={() => imageInputRef.current?.click()}
+              onClick={() => fileInputRef.current?.click()}
             >
               +
             </button>
@@ -1211,7 +1293,7 @@ export default function Home() {
                 className="send-button"
                 type="button"
                 onClick={() => void sendMessage()}
-                disabled={(!input.trim() && !pendingImage) || !settings.model}
+                disabled={(!input.trim() && !pendingImage && !pendingFile) || !settings.model}
                 aria-label="ส่งข้อความ"
               >
                 ↑
