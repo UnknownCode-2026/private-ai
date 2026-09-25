@@ -117,6 +117,122 @@ function textFromNode(node: ReactNode): string {
   return "";
 }
 
+type ThaiBanIconName =
+  | "menu"
+  | "more"
+  | "close"
+  | "plus"
+  | "edit"
+  | "trash"
+  | "settings"
+  | "logout"
+  | "copy"
+  | "refresh"
+  | "attach"
+  | "stop"
+  | "send"
+  | "file";
+
+function ThaiBanIcon({
+  name,
+  size = 20,
+}: {
+  name: ThaiBanIconName;
+  size?: number;
+}) {
+  const common = {
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+
+  return (
+    <svg
+      className="tb-icon"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {name === "menu" ? (
+        <>
+          <path {...common} d="M5 7.5h14" />
+          <path {...common} d="M5 12h10.5" />
+          <path {...common} d="M5 16.5h14" />
+        </>
+      ) : name === "more" ? (
+        <>
+          <circle cx="6.5" cy="12" r="1.15" fill="currentColor" />
+          <circle cx="12" cy="12" r="1.15" fill="currentColor" />
+          <circle cx="17.5" cy="12" r="1.15" fill="currentColor" />
+        </>
+      ) : name === "close" ? (
+        <>
+          <path {...common} d="M6.5 6.5l11 11" />
+          <path {...common} d="M17.5 6.5l-11 11" />
+        </>
+      ) : name === "plus" ? (
+        <>
+          <path {...common} d="M12 5v14" />
+          <path {...common} d="M5 12h14" />
+        </>
+      ) : name === "edit" ? (
+        <>
+          <path {...common} d="M5.5 18.5l3.2-.7 8.7-8.7-2.5-2.5-8.7 8.7-.7 3.2z" />
+          <path {...common} d="M13.9 7.6l2.5 2.5" />
+        </>
+      ) : name === "trash" ? (
+        <>
+          <path {...common} d="M7.5 8.5v9.5h9V8.5" />
+          <path {...common} d="M6 7h12" />
+          <path {...common} d="M9.5 7V5.5h5V7" />
+          <path {...common} d="M10 11v4.5M14 11v4.5" />
+        </>
+      ) : name === "settings" ? (
+        <>
+          <circle {...common} cx="12" cy="12" r="2.7" />
+          <path {...common} d="M12 4.8v1.5M12 17.7v1.5M19.2 12h-1.5M6.3 12H4.8" />
+          <path {...common} d="M17.1 6.9L16 8M8 16l-1.1 1.1M17.1 17.1L16 16M8 8L6.9 6.9" />
+        </>
+      ) : name === "logout" ? (
+        <>
+          <path {...common} d="M10 6H6.5v12H10" />
+          <path {...common} d="M13 8.5L16.5 12 13 15.5" />
+          <path {...common} d="M9 12h7.5" />
+        </>
+      ) : name === "copy" ? (
+        <>
+          <rect {...common} x="8" y="8" width="10.5" height="10.5" rx="2" />
+          <path {...common} d="M15.5 8V6.7a2.2 2.2 0 00-2.2-2.2H6.7a2.2 2.2 0 00-2.2 2.2v6.6a2.2 2.2 0 002.2 2.2H8" />
+        </>
+      ) : name === "refresh" ? (
+        <>
+          <path {...common} d="M18 8.5V5l-2.1 2.1A7 7 0 105.8 16.7" />
+          <path {...common} d="M18 5h-3.5" />
+        </>
+      ) : name === "attach" ? (
+        <path {...common} d="M9 12.5l5.5-5.5a3.2 3.2 0 114.5 4.5l-7 7a5 5 0 11-7.1-7.1l7.1-7.1" />
+      ) : name === "stop" ? (
+        <rect x="7" y="7" width="10" height="10" rx="2.3" fill="currentColor" />
+      ) : name === "send" ? (
+        <>
+          <path {...common} d="M12 18V6" />
+          <path {...common} d="M7.5 10.5L12 6l4.5 4.5" />
+        </>
+      ) : name === "file" ? (
+        <>
+          <path {...common} d="M7 4.5h6l4 4V19.5H7z" />
+          <path {...common} d="M13 4.5v4h4" />
+          <path {...common} d="M9.5 13h5M9.5 16h4" />
+        </>
+      ) : null}
+    </svg>
+  );
+}
+
 function Markdown({
   children,
   onCopy,
@@ -152,7 +268,8 @@ function Markdown({
                 type="button"
                 onClick={() => void onCopy(code)}
               >
-                คัดลอก
+                <ThaiBanIcon name="copy" size={16} />
+                <span className="sr-only">คัดลอก</span>
               </button>
               <pre tabIndex={0} aria-label="โค้ด เลื่อนแนวนอนเพื่ออ่าน">
                 {preChildren}
@@ -913,7 +1030,7 @@ export default function Home() {
             className="icon-button mobile-only"
             onClick={() => setSidebarOpen(false)}
           >
-            ✕
+            <ThaiBanIcon name="close" size={22} />
           </button>
         </div>
 
@@ -924,7 +1041,7 @@ export default function Home() {
           aria-label="แชตใหม่"
           onClick={newChat}
         >
-          <span>＋</span>
+          <span><ThaiBanIcon name="plus" size={20} /></span>
           แชตใหม่
         </button>
 
@@ -955,7 +1072,7 @@ export default function Home() {
                 type="button"
                 onClick={() => renameChat(chat)}
               >
-                ✎
+                <ThaiBanIcon name="edit" size={18} />
               </button>
               <button
                 disabled={streaming}
@@ -964,7 +1081,7 @@ export default function Home() {
                 type="button"
                 onClick={() => deleteChat(chat.id)}
               >
-                ×
+                <ThaiBanIcon name="trash" size={18} />
               </button>
             </div>
           ))}
@@ -976,10 +1093,10 @@ export default function Home() {
             aria-label="การตั้งค่า"
             onClick={() => setSettingsOpen(true)}
           >
-            <span aria-hidden="true">⚙</span> การตั้งค่า
+            <span aria-hidden="true"><ThaiBanIcon name="settings" size={19} /></span> การตั้งค่า
           </button>
           <button type="button" aria-label="ออกจากระบบ" onClick={logout}>
-            <span aria-hidden="true">↪</span> ออกจากระบบ
+            <span aria-hidden="true"><ThaiBanIcon name="logout" size={19} /></span> ออกจากระบบ
           </button>
         </div>
       </aside>
@@ -996,7 +1113,7 @@ export default function Home() {
             aria-expanded={sidebarOpen}
             onClick={() => setSidebarOpen(true)}
           >
-            ☰
+            <ThaiBanIcon name="menu" size={22} />
           </button>
           <div className="topbar-title">
             {activeConversation.title !== "แชตใหม่" ? (
@@ -1009,7 +1126,7 @@ export default function Home() {
             aria-label="เปิดการตั้งค่า"
             onClick={() => setSettingsOpen(true)}
           >
-            ⋯
+            <ThaiBanIcon name="more" size={22} />
           </button>
         </header>
 
@@ -1082,7 +1199,7 @@ export default function Home() {
                       title="คัดลอก"
                       onClick={() => void copyText(message.content)}
                     >
-                      ⧉
+                      <ThaiBanIcon name="copy" size={18} />
                     </button>
                   </div>
                   <div className="message-content">
@@ -1095,7 +1212,7 @@ export default function Home() {
                     ) : null}
                     {message.role === "user" && message.file ? (
                       <div className="chat-file">
-                        <span className="file-icon">DOC</span>
+                        <span className="file-icon"><ThaiBanIcon name="file" size={22} /></span>
                         <span>
                           <strong>{message.file.name}</strong>
                           <small>{Math.max(1, Math.ceil(message.file.size / 1024))} KB</small>
@@ -1130,19 +1247,19 @@ export default function Home() {
               type="button"
               onClick={() => setNotice("")}
             >
-              {notice} <span>×</span>
+              {notice} <span><ThaiBanIcon name="close" size={15} /></span>
             </button>
           ) : null}
 
           {activeConversation.messages.length > 1 && !streaming ? (
             <button className="regen-button" type="button" onClick={regenerate}>
-              ↻ สร้างคำตอบใหม่
+              <ThaiBanIcon name="refresh" size={17} /> สร้างคำตอบใหม่
             </button>
           ) : null}
 
           {pendingFile ? (
             <div className="file-preview">
-              <span className="file-icon">DOC</span>
+              <span className="file-icon"><ThaiBanIcon name="file" size={22} /></span>
               <div>
                 <strong>{pendingFile.name}</strong>
                 <span>{Math.max(1, Math.ceil(pendingFile.size / 1024))} KB · พร้อมส่งให้ AI อ่าน</span>
@@ -1152,7 +1269,7 @@ export default function Home() {
                 aria-label="ลบไฟล์"
                 onClick={() => setPendingFile(null)}
               >
-                ×
+                <ThaiBanIcon name="close" size={18} />
               </button>
             </div>
           ) : null}
@@ -1169,7 +1286,7 @@ export default function Home() {
                 aria-label="ลบรูปภาพ"
                 onClick={() => setPendingImage(null)}
               >
-                ×
+                <ThaiBanIcon name="close" size={18} />
               </button>
             </div>
           ) : null}
@@ -1254,7 +1371,7 @@ export default function Home() {
               disabled={streaming}
               onClick={() => fileInputRef.current?.click()}
             >
-              +
+              <ThaiBanIcon name="attach" size={22} />
             </button>
             <textarea
               aria-label="ข้อความถึง ThaiBan AI"
@@ -1277,7 +1394,7 @@ export default function Home() {
                 onClick={stopStreaming}
                 aria-label="หยุดการตอบ"
               >
-                ■
+                <ThaiBanIcon name="stop" size={18} />
               </button>
             ) : (
               <button
@@ -1287,7 +1404,7 @@ export default function Home() {
                 disabled={(!input.trim() && !pendingImage && !pendingFile) || !settings.model}
                 aria-label="ส่งข้อความ"
               >
-                ↑
+                <ThaiBanIcon name="send" size={20} />
               </button>
             )}
           </div>
@@ -1321,7 +1438,7 @@ export default function Home() {
             aria-label="ปิดการตั้งค่า"
             onClick={() => setSettingsOpen(false)}
           >
-            ✕
+            <ThaiBanIcon name="close" size={22} />
           </button>
         </div>
 
