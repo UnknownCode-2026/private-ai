@@ -2596,3 +2596,66 @@ body,
     padding-top: calc(env(safe-area-inset-top) + 24px) !important;
   }
 }
+
+
+/* ThaiBan AI custom icon system */
+.tb-icon {
+  display: block;
+  flex: 0 0 auto;
+  color: currentColor;
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.new-chat-button > span,
+.sidebar-footer button > span,
+.regen-button,
+.code-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.new-chat-button > span {
+  width: 22px;
+  height: 22px;
+}
+
+.sidebar-footer button > span {
+  width: 22px;
+  height: 22px;
+}
+
+.regen-button {
+  gap: 7px;
+}
+
+.code-copy {
+  gap: 6px;
+}
+
+.file-icon {
+  display: grid;
+  place-items: center;
+}
+
+.attach-button,
+.send-button,
+.chat-more,
+.icon-button,
+.message-meta button,
+.file-preview button,
+.image-preview button {
+  display: grid;
+  place-items: center;
+}
