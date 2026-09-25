@@ -103,42 +103,120 @@ export async function POST(request: Request) {
   );
 
   try {
+    const payload = {
+      model: body.model,
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+    };
+
+    // Normalize Kob AI's different OpenAI-compatible model responses here.
+    // The browser always receives one predictable SSE shape.
     const upstream = await fetch(`${baseUrl()}/chat/completions`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        Accept: "text/event-stream",
+        Accept: "application/json",
       },
       body: JSON.stringify({
-        model: body.model,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-        stream: true,
+        ...payload,
+        stream: false,
       }),
       signal: request.signal,
     });
 
-    if (!upstream.ok || !upstream.body) {
+    const raw = await upstream.text();
+
+    if (!upstream.ok) {
+      let detail = "";
+      try {
+        const parsed = JSON.parse(raw);
+        detail =
+          parsed?.error?.message ||
+          parsed?.error ||
+          parsed?.message ||
+          "";
+      } catch {
+        detail = "";
+      }
       return Response.json(
         {
-          error: "Kob AI ตอบกลับด้วยข้อผิดพลาด",
+          error:
+            typeof detail === "string" && detail.trim()
+              ? detail.trim()
+              : "Kob AI ตอบกลับด้วยข้อผิดพลาด",
         },
         { status: upstream.status || 502 },
       );
     }
 
-    return new Response(upstream.body, {
-      status: 200,
-      headers: {
-        "Content-Type":
-          upstream.headers.get("content-type") ||
-          "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
-        "X-Accel-Buffering": "no",
-      },
+    let data: any;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      return Response.json(
+        { error: "รูปแบบคำตอบจาก Kob AI ไม่ถูกต้อง" },
+        { status: 502 },
+      );
+    }
+
+    const candidate =
+      data?.choices?.[0]?.message?.content ??
+      data?.choices?.[0]?.delta?.content ??
+      data?.choices?.[0]?.text ??
+      data?.message?.content ??
+      data?.content ??
+      data?.response ??
+      data?.text ??
+      "";
+
+    const content =
+      typeof candidate === "string"
+        ? candidate
+        : Array.isArray(candidate)
+          ? candidate
+              .map((part: any) =>
+                typeof part === "string"
+                  ? part
+                  : typeof part?.text === "string"
+                    ? part.text
+                    : typeof part?.content === "string"
+                      ? part.content
+                      : "",
+              )
+              .join("")
+          : "";
+
+    if (!content.trim()) {
+      return Response.json(
+        { error: "โมเดลตอบกลับมาแต่ไม่มีข้อความ" },
+        { status: 502 },
+      );
+    }
+
+    const encoder = new TextEncoder();
+    const safe = JSON.stringify({
+      choices: [{ delta: { content } }],
     });
+
+    return new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(`data: ${safe}\n\n`));
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          "X-Accel-Buffering": "no",
+        },
+      },
+    );
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       return new Response(null, { status: 499 });
@@ -151,4 +229,6 @@ export async function POST(request: Request) {
       { status: 502 },
     );
   }
+}
+
 }
