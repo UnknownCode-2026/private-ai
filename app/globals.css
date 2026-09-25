@@ -3216,3 +3216,79 @@ html[data-theme="light"] .code-wrap > div:not(.code-toolbar) {
     border-radius: 12px !important;
   }
 }
+
+
+/* Retryable AI error state */
+.message-error {
+  margin-top: 12px;
+  padding: 12px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 34%, var(--border));
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--danger) 7%, var(--surface));
+}
+
+.message-error.partial {
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+}
+
+.message-error > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.message-error strong {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.message-error span,
+.message-error small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.message-error button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 7px 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.message-error button:hover {
+  background: var(--surface-3);
+}
+
+.message-meta button:disabled {
+  opacity: .35;
+  cursor: default;
+}
+
+@media (max-width: 599px) {
+  .message-error {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 11px 12px;
+  }
+
+  .message-error button {
+    width: 100%;
+  }
+}
