@@ -846,11 +846,28 @@ export default function Home() {
 
           try {
             const json = JSON.parse(payload);
-            const delta =
+            const rawContent =
               json?.choices?.[0]?.delta?.content ??
               json?.choices?.[0]?.message?.content ??
+              json?.choices?.[0]?.text ??
               "";
-            if (typeof delta === "string" && delta) applyText(delta);
+            const delta =
+              typeof rawContent === "string"
+                ? rawContent
+                : Array.isArray(rawContent)
+                  ? rawContent
+                      .map((part) =>
+                        typeof part === "string"
+                          ? part
+                          : typeof part?.text === "string"
+                            ? part.text
+                            : typeof part?.content === "string"
+                              ? part.content
+                              : "",
+                      )
+                      .join("")
+                  : "";
+            if (delta) applyText(delta);
           } catch {
             // ข้าม event ที่ไม่ใช่ JSON
           }
@@ -860,11 +877,28 @@ export default function Home() {
       if (buffer.trim()) {
         try {
           const json = JSON.parse(buffer.replace(/^data:\s*/, ""));
-          const text =
+          const rawContent =
             json?.choices?.[0]?.message?.content ??
             json?.choices?.[0]?.delta?.content ??
+            json?.choices?.[0]?.text ??
             "";
-          if (typeof text === "string") applyText(text);
+          const text =
+            typeof rawContent === "string"
+              ? rawContent
+              : Array.isArray(rawContent)
+                ? rawContent
+                    .map((part) =>
+                      typeof part === "string"
+                        ? part
+                        : typeof part?.text === "string"
+                          ? part.text
+                          : typeof part?.content === "string"
+                            ? part.content
+                            : "",
+                    )
+                    .join("")
+                : "";
+          if (text) applyText(text);
         } catch {
           // ไม่มีข้อความเพิ่มเติม
         }
