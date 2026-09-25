@@ -2837,3 +2837,102 @@ html[data-theme="light"] .code-wrap .token.class-name { color: #dcdcaa !importan
 html[data-theme="light"] .code-wrap .token.operator,
 html[data-theme="light"] .code-wrap .token.entity,
 html[data-theme="light"] .code-wrap .token.url { color: #d4d4d4 !important; }
+
+
+/* ThaiBan Code — softer VS Code-inspired green palette */
+.code-wrap {
+  background: #17201b !important;
+  border-color: #2a3a31 !important;
+  color: #d7e3da !important;
+}
+.code-toolbar {
+  background: #131b17 !important;
+  border-bottom-color: #2a3a31 !important;
+}
+.code-language {
+  color: #8fa89a !important;
+}
+.code-toolbar .code-copy {
+  color: #aebdb4 !important;
+}
+.code-toolbar .code-copy:hover {
+  background: #223029 !important;
+  color: #e7f2ea !important;
+}
+.code-wrap > div:not(.code-toolbar) {
+  background: #17201b !important;
+  color: #d7e3da !important;
+}
+
+/* Calm syntax colors: green-led, with muted supporting hues. */
+.code-wrap .token.comment,
+.code-wrap .token.prolog,
+.code-wrap .token.doctype,
+.code-wrap .token.cdata { color: #6f9d78 !important; }
+.code-wrap .token.punctuation { color: #a9b8ae !important; }
+.code-wrap .token.tag,
+.code-wrap .token.selector,
+.code-wrap .token.keyword { color: #79b88a !important; }
+.code-wrap .token.attr-name,
+.code-wrap .token.property,
+.code-wrap .token.constant,
+.code-wrap .token.symbol,
+.code-wrap .token.boolean,
+.code-wrap .token.number { color: #9fc59f !important; }
+.code-wrap .token.attr-value,
+.code-wrap .token.string,
+.code-wrap .token.char,
+.code-wrap .token.inserted { color: #b7c98f !important; }
+.code-wrap .token.function,
+.code-wrap .token.class-name,
+.code-wrap .token.builtin { color: #9bc7b0 !important; }
+.code-wrap .token.operator,
+.code-wrap .token.entity,
+.code-wrap .token.url,
+.code-wrap .token.variable { color: #c3d2c8 !important; }
+.code-wrap .token.regex,
+.code-wrap .token.important { color: #d0bd8b !important; }
+.code-wrap .token.deleted { color: #c98f8f !important; }
+
+/* Keep the editor palette identical when the app is in light mode. */
+html[data-theme="light"] .code-wrap {
+  background: #17201b !important;
+  color: #d7e3da !important;
+  border-color: #2a3a31 !important;
+}
+html[data-theme="light"] .code-toolbar {
+  background: #131b17 !important;
+  border-bottom-color: #2a3a31 !important;
+}
+html[data-theme="light"] .code-wrap > div:not(.code-toolbar) {
+  background: #17201b !important;
+  color: #d7e3da !important;
+}
+html[data-theme="light"] .code-wrap .token.comment,
+html[data-theme="light"] .code-wrap .token.prolog,
+html[data-theme="light"] .code-wrap .token.doctype,
+html[data-theme="light"] .code-wrap .token.cdata { color: #6f9d78 !important; }
+html[data-theme="light"] .code-wrap .token.punctuation { color: #a9b8ae !important; }
+html[data-theme="light"] .code-wrap .token.tag,
+html[data-theme="light"] .code-wrap .token.selector,
+html[data-theme="light"] .code-wrap .token.keyword { color: #79b88a !important; }
+html[data-theme="light"] .code-wrap .token.attr-name,
+html[data-theme="light"] .code-wrap .token.property,
+html[data-theme="light"] .code-wrap .token.constant,
+html[data-theme="light"] .code-wrap .token.symbol,
+html[data-theme="light"] .code-wrap .token.boolean,
+html[data-theme="light"] .code-wrap .token.number { color: #9fc59f !important; }
+html[data-theme="light"] .code-wrap .token.attr-value,
+html[data-theme="light"] .code-wrap .token.string,
+html[data-theme="light"] .code-wrap .token.char,
+html[data-theme="light"] .code-wrap .token.inserted { color: #b7c98f !important; }
+html[data-theme="light"] .code-wrap .token.function,
+html[data-theme="light"] .code-wrap .token.class-name,
+html[data-theme="light"] .code-wrap .token.builtin { color: #9bc7b0 !important; }
+html[data-theme="light"] .code-wrap .token.operator,
+html[data-theme="light"] .code-wrap .token.entity,
+html[data-theme="light"] .code-wrap .token.url,
+html[data-theme="light"] .code-wrap .token.variable { color: #c3d2c8 !important; }
+html[data-theme="light"] .code-wrap .token.regex,
+html[data-theme="light"] .code-wrap .token.important { color: #d0bd8b !important; }
+html[data-theme="light"] .code-wrap .token.deleted { color: #c98f8f !important; }
