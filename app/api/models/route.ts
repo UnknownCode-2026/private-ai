@@ -37,7 +37,6 @@ export async function GET() {
       );
     }
 
-    const data = JSON.parse(text);
     const data: unknown = JSON.parse(text);
     const source =
       data && typeof data === "object" && "data" in data
