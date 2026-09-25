@@ -53,9 +53,10 @@ for (const [width, height] of sizes) {
     await expect(page.locator(".code-wrap")).toBeVisible();
     await noOverflow(page);
     expect(
-      await page
-        .locator(".code-wrap pre")
-        .evaluate((el) => el.scrollWidth > el.clientWidth),
+      await page.locator(".code-wrap code").evaluate((el) => {
+        const scroller = el.parentElement;
+        return Boolean(scroller && scroller.scrollWidth > scroller.clientWidth);
+      }),
     ).toBeTruthy();
     expect(
       await page
