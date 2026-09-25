@@ -2725,3 +2725,54 @@ body,
     padding: 48px 14px 18px !important;
   }
 }
+
+
+/* VS Code-style code blocks */
+.code-wrap {
+  background: #1e1e1e !important;
+  border: 1px solid #30363d !important;
+  color: #d4d4d4 !important;
+}
+.code-toolbar {
+  min-height: 42px;
+  padding: 0 10px 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #181818;
+  border-bottom: 1px solid #30363d;
+}
+.code-language {
+  color: #9da5b4;
+  font: 600 11px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.code-toolbar .code-copy {
+  position: static !important;
+  width: 32px !important;
+  min-width: 32px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 !important;
+  display: grid !important;
+  place-items: center;
+  color: #c5c5c5 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 7px !important;
+}
+.code-toolbar .code-copy:hover {
+  background: #2a2d2e !important;
+  color: #ffffff !important;
+}
+.code-wrap > div:not(.code-toolbar) {
+  max-width: 100%;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+.code-wrap > div:not(.code-toolbar) code {
+  white-space: pre !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+}
