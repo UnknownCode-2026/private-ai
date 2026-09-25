@@ -2659,3 +2659,18 @@ body,
   display: grid;
   place-items: center;
 }
+
+
+/* Kob AI model selector status */
+.setting-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.setting-label-row > small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
