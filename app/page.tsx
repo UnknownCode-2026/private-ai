@@ -874,6 +874,7 @@ export default function Home() {
           disabled={streaming}
           className="new-chat-button"
           type="button"
+          aria-label="แชตใหม่"
           onClick={newChat}
         >
           <span>＋</span>
@@ -923,11 +924,15 @@ export default function Home() {
         </div>
 
         <div className="sidebar-footer">
-          <button type="button" onClick={() => setSettingsOpen(true)}>
-            <span>⚙</span> การตั้งค่า
+          <button
+            type="button"
+            aria-label="การตั้งค่า"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <span aria-hidden="true">⚙</span> การตั้งค่า
           </button>
-          <button type="button" onClick={logout}>
-            <span>↪</span> ออกจากระบบ
+          <button type="button" aria-label="ออกจากระบบ" onClick={logout}>
+            <span aria-hidden="true">↪</span> ออกจากระบบ
           </button>
         </div>
       </aside>
