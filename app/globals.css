@@ -1686,3 +1686,75 @@ html[data-theme="light"] .message-content {
     right: 8px;
   }
 }
+
+
+/* Chat action alignment polish: keep Copy/actions tidy and consistent. */
+.message-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  margin-bottom: 8px;
+}
+
+.message-meta strong {
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.message-meta button {
+  margin-left: auto;
+  min-width: 64px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.message-meta button:hover {
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+
+.message-row.user .message-meta {
+  justify-content: flex-end;
+}
+
+.message-row.user .message-meta strong {
+  order: 1;
+}
+
+.message-row.user .message-meta button {
+  order: 2;
+  margin-left: 2px;
+}
+
+.message-row.assistant .message-meta button {
+  margin-left: auto;
+}
+
+@media (max-width: 599px) {
+  .message-meta {
+    min-height: 32px;
+    margin-bottom: 7px;
+  }
+
+  .message-meta button {
+    min-width: 58px;
+    min-height: 30px;
+    padding: 5px 8px;
+    font-size: 12px;
+    border-radius: 8px;
+  }
+
+  .message-row.user .message-meta {
+    padding-right: 2px;
+  }
+}
