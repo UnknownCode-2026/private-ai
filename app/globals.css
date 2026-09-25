@@ -2095,3 +2095,18 @@ html[data-theme="light"] .message-content {
     overflow-x: hidden;
   }
 }
+
+.brand-mark {
+  background-image: url("/icon.svg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: transparent;
+}
+.message-row.assistant .message-avatar {
+  background-image: url("/icon.svg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: transparent;
+}
