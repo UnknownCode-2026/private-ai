@@ -181,6 +181,7 @@ export default function Home() {
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
 
   const activeConversation = useMemo(
     () =>
@@ -1093,6 +1094,29 @@ export default function Home() {
           ) : null}
 
           <div className="composer">
+            <input
+              ref={imageInputRef}
+              className="image-input"
+              type="file"
+              accept="image/*"
+              aria-label="แนบรูปภาพ"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                setNotice(`เลือกรูปภาพแล้ว: ${file.name} — ระบบส่งรูปให้ AI จะเพิ่มในขั้นถัดไป`);
+                event.target.value = "";
+              }}
+            />
+            <button
+              className="attach-button"
+              type="button"
+              aria-label="แนบรูปภาพ"
+              title="แนบรูปภาพ"
+              disabled={streaming}
+              onClick={() => imageInputRef.current?.click()}
+            >
+              +
+            </button>
             <textarea
               aria-label="ข้อความถึง ThaiBan AI"
               ref={inputRef}
