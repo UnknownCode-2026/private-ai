@@ -1758,3 +1758,61 @@ html[data-theme="light"] .message-content {
     padding-right: 2px;
   }
 }
+
+
+/* Composer attachment control */
+.image-input {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.attach-button {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  flex: 0 0 42px;
+  align-self: flex-end;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 28px;
+  font-weight: 300;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .16s ease, color .16s ease, transform .16s ease;
+}
+
+.attach-button:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.attach-button:active {
+  transform: scale(.92);
+}
+
+.attach-button:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 599px) {
+  .attach-button {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    flex-basis: 44px;
+    border-radius: 13px;
+    font-size: 30px;
+  }
+}
