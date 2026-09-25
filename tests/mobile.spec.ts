@@ -17,7 +17,7 @@ async function session(page: Page) {
   expect(response.status()).toBe(200);
   expect(response.headers()["set-cookie"]).toContain("HttpOnly");
   await page.goto("/");
-  await expect(page.getByLabel("เลือกโมเดล")).toHaveValue(
+  await expect(page.getByLabel("เลือกโมเดล", { exact: true })).toHaveValue(
     "model-long-" + "name".repeat(30),
   );
 }
