@@ -1,4 +1,4 @@
-const CACHE = "thaiban-ai-v1.1-logo-v3";
+const CACHE = "thaiban-ai-v1.2-logo-v3";
 const ASSETS = [
   "/icon.svg?v=3",
 ];

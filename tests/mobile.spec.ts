@@ -17,7 +17,7 @@ async function session(page: Page) {
   expect(response.status()).toBe(200);
   expect(response.headers()["set-cookie"]).toContain("HttpOnly");
   await page.goto("/");
-  await expect(page.getByLabel("เลือกโมเดล", { exact: true })).toHaveValue(
+  await expect(page.locator(".current-model")).toHaveText(
     "model-long-" + "name".repeat(30),
   );
 }
@@ -197,6 +197,6 @@ test("API auth, errors and PWA", async ({ request }) => {
   for (const icon of manifest.icons)
     expect((await request.get(icon.src)).status()).toBe(200);
   expect(await (await request.get("/sw.js")).text()).toContain(
-    "thaiban-ai-v1.1",
+    "thaiban-ai-v1.2",
   );
 });

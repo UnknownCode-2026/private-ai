@@ -52,7 +52,7 @@ Production: https://thaibanai.vercel.app/
 
 ## PWA
 
-Manifest ใช้ชื่อ ThaiBan AI, standalone, ไอคอน PNG 192/512, maskable และ Apple touch icon Service worker `thaiban-ai-v1.1` ล้างแคชแบรนด์เก่าเฉพาะของแอปนี้ และเก็บเฉพาะไอคอน ไม่แคชข้อมูลส่วนตัว หน้าแชต หรือ API การสนทนากับ AI ต้องเชื่อมต่ออินเทอร์เน็ต
+Manifest ใช้ชื่อ ThaiBan AI, standalone, ไอคอน PNG 192/512, maskable และ Apple touch icon Service worker `thaiban-ai-v1.2` ล้างแคชแบรนด์เก่าเฉพาะของแอปนี้ และเก็บเฉพาะไอคอน ไม่แคชข้อมูลส่วนตัว หน้าแชต หรือ API การสนทนากับ AI ต้องเชื่อมต่ออินเทอร์เน็ต
 
 ## การเผยแพร่
 
