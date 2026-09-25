@@ -2776,3 +2776,64 @@ body,
   word-break: normal !important;
   overflow-wrap: normal !important;
 }
+
+
+/* Code editor is intentionally VS Code dark in both themes.
+   Prevent light-theme Markdown rules from leaking into syntax tokens. */
+html[data-theme="light"] .code-wrap,
+html[data-theme="light"] .code-wrap * {
+  --md-code-text: #d4d4d4;
+}
+
+html[data-theme="light"] .code-wrap {
+  background: #1e1e1e !important;
+  color: #d4d4d4 !important;
+  color-scheme: dark;
+}
+
+html[data-theme="light"] .code-toolbar {
+  background: #181818 !important;
+  border-bottom-color: #30363d !important;
+}
+
+html[data-theme="light"] .code-wrap > div:not(.code-toolbar) {
+  background: #1e1e1e !important;
+  color: #d4d4d4 !important;
+}
+
+html[data-theme="light"] .code-wrap code,
+html[data-theme="light"] .code-wrap pre {
+  background: transparent !important;
+}
+
+/* Never apply the light inline-code chip to fenced code blocks. */
+html[data-theme="light"] .message-content .code-wrap code {
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  font-weight: 400 !important;
+  box-shadow: none !important;
+}
+
+/* Preserve Prism/VS Code token foregrounds in light app mode. */
+html[data-theme="light"] .code-wrap .token.comment,
+html[data-theme="light"] .code-wrap .token.prolog,
+html[data-theme="light"] .code-wrap .token.doctype,
+html[data-theme="light"] .code-wrap .token.cdata { color: #6a9955 !important; }
+html[data-theme="light"] .code-wrap .token.punctuation { color: #d4d4d4 !important; }
+html[data-theme="light"] .code-wrap .token.tag,
+html[data-theme="light"] .code-wrap .token.deleted { color: #569cd6 !important; }
+html[data-theme="light"] .code-wrap .token.attr-name,
+html[data-theme="light"] .code-wrap .token.number,
+html[data-theme="light"] .code-wrap .token.boolean { color: #9cdcfe !important; }
+html[data-theme="light"] .code-wrap .token.attr-value,
+html[data-theme="light"] .code-wrap .token.string,
+html[data-theme="light"] .code-wrap .token.char,
+html[data-theme="light"] .code-wrap .token.inserted { color: #ce9178 !important; }
+html[data-theme="light"] .code-wrap .token.keyword,
+html[data-theme="light"] .code-wrap .token.selector { color: #c586c0 !important; }
+html[data-theme="light"] .code-wrap .token.function,
+html[data-theme="light"] .code-wrap .token.class-name { color: #dcdcaa !important; }
+html[data-theme="light"] .code-wrap .token.operator,
+html[data-theme="light"] .code-wrap .token.entity,
+html[data-theme="light"] .code-wrap .token.url { color: #d4d4d4 !important; }
