@@ -999,27 +999,20 @@ export default function Home() {
             ☰
           </button>
           <div className="topbar-title">
-            <strong>{activeConversation.title}</strong>
-            <span>{settings.model || "ยังไม่ได้เลือกโมเดล"}</span>
+            <strong>
+              {activeConversation.title === "แชตใหม่"
+                ? "ThaiBan AI"
+                : activeConversation.title}
+            </strong>
           </div>
-          <select
-            className="model-select"
-            value={settings.model}
-            onChange={(event) =>
-              setSettings((previous) => ({
-                ...previous,
-                model: event.target.value,
-              }))
-            }
-            aria-label="เลือกโมเดล"
+          <button
+            className="icon-button topbar-settings"
+            type="button"
+            aria-label="เปิดการตั้งค่า"
+            onClick={() => setSettingsOpen(true)}
           >
-            {!models.length ? <option value="">เลือกโมเดล</option> : null}
-            {models.map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.id}
-              </option>
-            ))}
-          </select>
+            ⋯
+          </button>
         </header>
 
         <div
@@ -1034,11 +1027,9 @@ export default function Home() {
         >
           {activeConversation.messages.length === 0 ? (
             <section className="welcome">
-              <div className="brand-mark hero">TB</div>
-              <h1>
-                สวัสดีครับ <span>👋</span>
-              </h1>
-              <p>วันนี้ให้ ThaiBan AI ช่วยอะไร?</p>
+              <div className="brand-mark hero">T</div>
+              <h1>วันนี้ให้ ThaiBan AI ช่วยอะไร?</h1>
+              <p>ถาม เขียนโค้ด สรุปไฟล์ หรือช่วยคิดไอเดียได้เลย</p>
               {modelsError ? (
                 <div className="warning-card">
                   <strong>ยังโหลดโมเดลไม่ได้</strong>
@@ -1089,9 +1080,11 @@ export default function Home() {
                     </strong>
                     <button
                       type="button"
+                      aria-label="คัดลอกข้อความ"
+                      title="คัดลอก"
                       onClick={() => void copyText(message.content)}
                     >
-                      คัดลอก
+                      ⧉
                     </button>
                   </div>
                   <div className="message-content">
