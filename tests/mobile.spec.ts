@@ -75,7 +75,7 @@ for (const [width, height] of sizes) {
     await page.getByRole("button", { name: "สว่าง", exact: true }).click();
     await page.screenshot({ path: `test-results/settings-light-${width}.png` });
     await page.getByLabel("ปิดการตั้งค่า").click();
-    if (width <= 900) await page.getByLabel("ปิดเมนู").click();
+    if (width <= 900) await page.getByLabel("ปิดเมนู", { exact: true }).click();
     await noOverflow(page);
     await page.getByLabel("ข้อความถึง ThaiBan AI").fill("บรรทัด\n".repeat(40));
     await page.setViewportSize({ width, height: Math.min(height, 400) });
