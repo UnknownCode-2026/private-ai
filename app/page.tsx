@@ -29,6 +29,25 @@ type TextFileAttachment = {
   content: string;
 };
 
+type ChatErrorInfo = {
+  code: string;
+  message: string;
+  retryable: boolean;
+  partial?: boolean;
+};
+
+class ChatRequestError extends Error {
+  code: string;
+  retryable: boolean;
+
+  constructor(message: string, code = "connection_error", retryable = true) {
+    super(message);
+    this.name = "ChatRequestError";
+    this.code = code;
+    this.retryable = retryable;
+  }
+}
+
 type Message = {
   id: string;
   role: Role;
@@ -36,6 +55,7 @@ type Message = {
   createdAt: number;
   image?: ImageAttachment;
   file?: TextFileAttachment;
+  error?: ChatErrorInfo;
 };
 
 type Conversation = {
@@ -764,29 +784,76 @@ export default function Home() {
     setStreaming(true);
     setNotice("");
 
+    let full = "";
+
+    const applyText = (value: string) => {
+      full += value;
+      patchConversation(chatId, (chat) => ({
+        ...chat,
+        updatedAt: Date.now(),
+        messages: chat.messages.map((message) =>
+          message.id === assistant.id
+            ? { ...message, content: full, error: undefined }
+            : message,
+        ),
+      }));
+    };
+
+    const parseError = (value: unknown) => {
+      if (typeof value === "string") {
+        return new ChatRequestError(value, "provider_unavailable", true);
+      }
+
+      if (value && typeof value === "object") {
+        const item = value as {
+          code?: unknown;
+          message?: unknown;
+          retryable?: unknown;
+        };
+        return new ChatRequestError(
+          typeof item.message === "string" && item.message.trim()
+            ? item.message
+            : "AI ตอบกลับไม่สำเร็จ กรุณาลองอีกครั้ง",
+          typeof item.code === "string" ? item.code : "provider_unavailable",
+          item.retryable !== false,
+        );
+      }
+
+      return new ChatRequestError(
+        "AI ตอบกลับไม่สำเร็จ กรุณาลองอีกครั้ง",
+        "provider_unavailable",
+        true,
+      );
+    };
+
     try {
       const apiMessages = [
         ...(settings.systemPrompt.trim()
           ? [{ role: "system" as const, content: settings.systemPrompt.trim() }]
           : []),
-        ...sourceMessages.map((message) => ({
-          role: message.role,
-          content:
-            message.role === "user" && message.image
-              ? [
-                  {
-                    type: "text" as const,
-                    text: message.content.trim() || "ช่วยวิเคราะห์รูปภาพนี้",
-                  },
-                  {
-                    type: "image_url" as const,
-                    image_url: { url: message.image.dataUrl },
-                  },
-                ]
-              : message.role === "user" && message.file
-                ? `${message.content.trim() || "ช่วยวิเคราะห์ไฟล์นี้"}\n\n--- ไฟล์: ${message.file.name} ---\n${message.file.content}\n--- จบไฟล์ ---`
-                : message.content,
-        })),
+        ...sourceMessages
+          .filter(
+            (message) =>
+              !(message.role === "assistant" && Boolean(message.error)),
+          )
+          .map((message) => ({
+            role: message.role,
+            content:
+              message.role === "user" && message.image
+                ? [
+                    {
+                      type: "text" as const,
+                      text: message.content.trim() || "ช่วยวิเคราะห์รูปภาพนี้",
+                    },
+                    {
+                      type: "image_url" as const,
+                      image_url: { url: message.image.dataUrl },
+                    },
+                  ]
+                : message.role === "user" && message.file
+                  ? `${message.content.trim() || "ช่วยวิเคราะห์ไฟล์นี้"}\n\n--- ไฟล์: ${message.file.name} ---\n${message.file.content}\n--- จบไฟล์ ---`
+                  : message.content,
+          })),
       ];
 
       const response = await fetch("/api/chat", {
@@ -807,27 +874,54 @@ export default function Home() {
         setHistoryReady(false);
         return;
       }
+
       if (!response.ok || !response.body) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "AI ตอบกลับไม่สำเร็จ");
+        throw parseError(data?.error);
       }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      let full = "";
 
-      const applyText = (value: string) => {
-        full += value;
-        patchConversation(chatId, (chat) => ({
-          ...chat,
-          updatedAt: Date.now(),
-          messages: chat.messages.map((message) =>
-            message.id === assistant.id
-              ? { ...message, content: full }
-              : message,
-          ),
-        }));
+      const handlePayload = (payload: string) => {
+        if (!payload || payload === "[DONE]") return;
+
+        let json: any;
+        try {
+          json = JSON.parse(payload);
+        } catch {
+          return;
+        }
+
+        if (json?.error) {
+          throw parseError(json.error);
+        }
+
+        const rawContent =
+          json?.choices?.[0]?.delta?.content ??
+          json?.choices?.[0]?.message?.content ??
+          json?.choices?.[0]?.text ??
+          "";
+
+        const delta =
+          typeof rawContent === "string"
+            ? rawContent
+            : Array.isArray(rawContent)
+              ? rawContent
+                  .map((part) =>
+                    typeof part === "string"
+                      ? part
+                      : typeof part?.text === "string"
+                        ? part.text
+                        : typeof part?.content === "string"
+                          ? part.content
+                          : "",
+                  )
+                  .join("")
+              : "";
+
+        if (delta) applyText(delta);
       };
 
       while (true) {
@@ -835,87 +929,29 @@ export default function Home() {
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
+        const lines = buffer.split(/\r?\n/);
         buffer = lines.pop() ?? "";
 
         for (const rawLine of lines) {
           const line = rawLine.trim();
           if (!line || !line.startsWith("data:")) continue;
-          const payload = line.slice(5).trim();
-          if (!payload || payload === "[DONE]") continue;
-
-          try {
-            const json = JSON.parse(payload);
-            const rawContent =
-              json?.choices?.[0]?.delta?.content ??
-              json?.choices?.[0]?.message?.content ??
-              json?.choices?.[0]?.text ??
-              "";
-            const delta =
-              typeof rawContent === "string"
-                ? rawContent
-                : Array.isArray(rawContent)
-                  ? rawContent
-                      .map((part) =>
-                        typeof part === "string"
-                          ? part
-                          : typeof part?.text === "string"
-                            ? part.text
-                            : typeof part?.content === "string"
-                              ? part.content
-                              : "",
-                      )
-                      .join("")
-                  : "";
-            if (delta) applyText(delta);
-          } catch {
-            // ข้าม event ที่ไม่ใช่ JSON
-          }
+          handlePayload(line.slice(5).trim());
         }
       }
 
-      if (buffer.trim()) {
-        try {
-          const json = JSON.parse(buffer.replace(/^data:\s*/, ""));
-          const rawContent =
-            json?.choices?.[0]?.message?.content ??
-            json?.choices?.[0]?.delta?.content ??
-            json?.choices?.[0]?.text ??
-            "";
-          const text =
-            typeof rawContent === "string"
-              ? rawContent
-              : Array.isArray(rawContent)
-                ? rawContent
-                    .map((part) =>
-                      typeof part === "string"
-                        ? part
-                        : typeof part?.text === "string"
-                          ? part.text
-                          : typeof part?.content === "string"
-                            ? part.content
-                            : "",
-                    )
-                    .join("")
-                : "";
-          if (text) applyText(text);
-        } catch {
-          // ไม่มีข้อความเพิ่มเติม
-        }
+      buffer += decoder.decode();
+      for (const rawLine of buffer.split(/\r?\n/)) {
+        const line = rawLine.trim();
+        if (!line || !line.startsWith("data:")) continue;
+        handlePayload(line.slice(5).trim());
       }
 
-      if (!full) {
-        patchConversation(chatId, (chat) => ({
-          ...chat,
-          messages: chat.messages.map((message) =>
-            message.id === assistant.id
-              ? {
-                  ...message,
-                  content: "ไม่ได้รับข้อความจากโมเดล กรุณาลองอีกครั้ง",
-                }
-              : message,
-          ),
-        }));
+      if (!full.trim()) {
+        throw new ChatRequestError(
+          "โมเดลตอบกลับมาแต่ไม่มีข้อความ กรุณาลองอีกครั้ง",
+          "empty_response",
+          true,
+        );
       }
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
@@ -924,17 +960,34 @@ export default function Home() {
           ...chat,
           messages: chat.messages.map((item) =>
             item.id === assistant.id && !item.content
-              ? { ...item, content: "หยุดการตอบแล้ว" }
+              ? { ...item, content: "หยุดการตอบแล้ว", error: undefined }
               : item,
           ),
         }));
       } else {
-        const message = "การเชื่อมต่อ AI ขัดข้อง กรุณาลองใหม่อีกครั้ง";
+        const normalized =
+          error instanceof ChatRequestError
+            ? error
+            : new ChatRequestError(
+                "การเชื่อมต่อ AI ขัดข้อง กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง",
+                "connection_error",
+                true,
+              );
+
         patchConversation(chatId, (chat) => ({
           ...chat,
+          updatedAt: Date.now(),
           messages: chat.messages.map((item) =>
             item.id === assistant.id
-              ? { ...item, content: `เกิดข้อผิดพลาด: ${message}` }
+              ? {
+                  ...item,
+                  error: {
+                    code: normalized.code,
+                    message: normalized.message,
+                    retryable: normalized.retryable,
+                    partial: Boolean(item.content),
+                  },
+                }
               : item,
           ),
         }));
@@ -985,6 +1038,28 @@ export default function Home() {
     }));
 
     await streamReply(chat.id, nextMessages);
+  }
+
+  async function retryAssistant(messageId: string) {
+    const chat = activeConversation;
+    if (!chat || streaming) return;
+
+    const failedIndex = chat.messages.findIndex(
+      (message) => message.id === messageId && Boolean(message.error),
+    );
+    if (failedIndex < 1) return;
+
+    const source = chat.messages.slice(0, failedIndex);
+    if (!source.length || source[source.length - 1]?.role !== "user") return;
+
+    patchConversation(chat.id, (item) => ({
+      ...item,
+      messages: source,
+      updatedAt: Date.now(),
+    }));
+
+    followRef.current = true;
+    await streamReply(chat.id, source);
   }
 
   async function regenerate() {
@@ -1286,7 +1361,7 @@ export default function Home() {
               </div>
             </section>
           ) : (
-            activeConversation.messages.map((message) => (
+            activeConversation.messages.map((message, messageIndex) => (
               <article
                 key={message.id}
                 className={`message-row ${message.role}`}
@@ -1303,6 +1378,7 @@ export default function Home() {
                       type="button"
                       aria-label="คัดลอกข้อความ"
                       title="คัดลอก"
+                      disabled={!message.content}
                       onClick={() => void copyText(message.content)}
                     >
                       <ThaiBanIcon name="copy" size={18} />
@@ -1328,7 +1404,7 @@ export default function Home() {
                     {message.role === "assistant" ? (
                       message.content ? (
                         <Markdown onCopy={copyText}>{message.content}</Markdown>
-                      ) : (
+                      ) : message.error ? null : (
                         <div className="typing">
                           <span />
                           <span />
@@ -1338,6 +1414,35 @@ export default function Home() {
                     ) : (
                       <p>{message.content}</p>
                     )}
+                    {message.role === "assistant" && message.error ? (
+                      <div
+                        className={`message-error ${message.error.partial ? "partial" : ""}`}
+                        role="status"
+                      >
+                        <div>
+                          <strong>
+                            {message.error.partial
+                              ? "คำตอบหยุดกลางทาง"
+                              : "ตอบไม่สำเร็จ"}
+                          </strong>
+                          <span>{message.error.message}</span>
+                          {message.error.partial ? (
+                            <small>ข้อความที่ตอบมาก่อนเกิดปัญหาถูกเก็บไว้แล้ว</small>
+                          ) : null}
+                        </div>
+                        {message.error.retryable &&
+                        messageIndex === activeConversation.messages.length - 1 &&
+                        !streaming ? (
+                          <button
+                            type="button"
+                            onClick={() => void retryAssistant(message.id)}
+                          >
+                            <ThaiBanIcon name="refresh" size={16} />
+                            ลองอีกครั้ง
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </article>
