@@ -14,11 +14,18 @@ import remarkGfm from "remark-gfm";
 
 type Role = "user" | "assistant";
 
+type ImageAttachment = {
+  dataUrl: string;
+  name: string;
+  type: string;
+};
+
 type Message = {
   id: string;
   role: Role;
   content: string;
   createdAt: number;
+  image?: ImageAttachment;
 };
 
 type Conversation = {
@@ -167,6 +174,7 @@ export default function Home() {
   const [models, setModels] = useState<ModelItem[]>([]);
   const [modelsError, setModelsError] = useState("");
   const [input, setInput] = useState("");
+  const [pendingImage, setPendingImage] = useState<ImageAttachment | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -564,7 +572,19 @@ export default function Home() {
           : []),
         ...sourceMessages.map((message) => ({
           role: message.role,
-          content: message.content,
+          content:
+            message.role === "user" && message.image
+              ? [
+                  {
+                    type: "text" as const,
+                    text: message.content.trim() || "ช่วยวิเคราะห์รูปภาพนี้",
+                  },
+                  {
+                    type: "image_url" as const,
+                    image_url: { url: message.image.dataUrl },
+                  },
+                ]
+              : message.content,
         })),
       ];
 
@@ -693,7 +713,7 @@ export default function Home() {
   async function sendMessage() {
     const content = input.trim();
     const chat = activeConversation;
-    if (!content || !chat || streaming) return;
+    if ((!content && !pendingImage) || !chat || streaming) return;
 
     if (!settings.model) {
       setNotice(modelsError || "ยังไม่มีโมเดลที่พร้อมใช้งาน");
@@ -703,17 +723,19 @@ export default function Home() {
     const userMessage: Message = {
       id: uid(),
       role: "user",
-      content,
+      content: content || "ช่วยวิเคราะห์รูปภาพนี้",
       createdAt: Date.now(),
+      image: pendingImage ?? undefined,
     };
     const nextMessages = [...chat.messages, userMessage];
     const title =
       chat.messages.length === 0
-        ? content.replace(/\s+/g, " ").slice(0, 36) || "แชตใหม่"
+        ? content.replace(/\s+/g, " ").slice(0, 36) || (pendingImage ? "รูปภาพ" : "แชตใหม่")
         : chat.title;
 
     followRef.current = true;
     setInput("");
+    setPendingImage(null);
     patchConversation(chat.id, (item) => ({
       ...item,
       title,
@@ -1055,6 +1077,13 @@ export default function Home() {
                     </button>
                   </div>
                   <div className="message-content">
+                    {message.role === "user" && message.image ? (
+                      <img
+                        className="chat-image"
+                        src={message.image.dataUrl}
+                        alt={message.image.name || "รูปภาพที่แนบ"}
+                      />
+                    ) : null}
                     {message.role === "assistant" ? (
                       message.content ? (
                         <Markdown onCopy={copyText}>{message.content}</Markdown>
@@ -1093,6 +1122,23 @@ export default function Home() {
             </button>
           ) : null}
 
+          {pendingImage ? (
+            <div className="image-preview">
+              <img src={pendingImage.dataUrl} alt={pendingImage.name} />
+              <div>
+                <strong>{pendingImage.name}</strong>
+                <span>พร้อมส่งพร้อมข้อความ</span>
+              </div>
+              <button
+                type="button"
+                aria-label="ลบรูปภาพ"
+                onClick={() => setPendingImage(null)}
+              >
+                ×
+              </button>
+            </div>
+          ) : null}
+
           <div className="composer">
             <input
               ref={imageInputRef}
@@ -1102,9 +1148,28 @@ export default function Home() {
               aria-label="แนบรูปภาพ"
               onChange={(event) => {
                 const file = event.target.files?.[0];
-                if (!file) return;
-                setNotice(`เลือกรูปภาพแล้ว: ${file.name} — ระบบส่งรูปให้ AI จะเพิ่มในขั้นถัดไป`);
                 event.target.value = "";
+                if (!file) return;
+                if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+                  setNotice("รองรับเฉพาะ JPG, PNG และ WebP");
+                  return;
+                }
+                if (file.size > 5 * 1024 * 1024) {
+                  setNotice("รูปภาพต้องมีขนาดไม่เกิน 5 MB");
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                  if (typeof reader.result !== "string") return;
+                  setPendingImage({
+                    dataUrl: reader.result,
+                    name: file.name,
+                    type: file.type,
+                  });
+                  setNotice("");
+                };
+                reader.onerror = () => setNotice("อ่านรูปภาพไม่สำเร็จ กรุณาลองใหม่");
+                reader.readAsDataURL(file);
               }}
             />
             <button
@@ -1145,7 +1210,7 @@ export default function Home() {
                 className="send-button"
                 type="button"
                 onClick={() => void sendMessage()}
-                disabled={!input.trim() || !settings.model}
+                disabled={(!input.trim() && !pendingImage) || !settings.model}
                 aria-label="ส่งข้อความ"
               >
                 ↑
