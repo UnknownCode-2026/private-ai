@@ -1,0 +1,25 @@
+name: ตรวจสอบ Private AI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ดึงโค้ด
+        uses: actions/checkout@v4
+
+      - name: ติดตั้ง Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: ติดตั้งแพ็กเกจ
+        run: npm install
+
+      - name: ตรวจสอบ Build
+        run: npm run build
