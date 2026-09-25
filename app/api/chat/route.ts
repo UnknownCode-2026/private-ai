@@ -42,6 +42,37 @@ function baseUrl() {
   );
 }
 
+function visibleText(payload: any): string {
+  const candidate =
+    payload?.choices?.[0]?.delta?.content ??
+    payload?.choices?.[0]?.message?.content ??
+    payload?.choices?.[0]?.text ??
+    payload?.message?.content ??
+    payload?.content ??
+    payload?.response ??
+    payload?.text ??
+    "";
+
+  if (typeof candidate === "string") return candidate;
+
+  if (Array.isArray(candidate)) {
+    return candidate
+      .map((part: any) =>
+        typeof part === "string"
+          ? part
+          : typeof part?.text === "string"
+            ? part.text
+            : typeof part?.content === "string"
+              ? part.content
+              : "",
+      )
+      .join("");
+  }
+
+  return "";
+}
+
+
 export async function POST(request: Request) {
   if (!(await isAuthorized())) {
     return Response.json({ error: "ไม่ได้รับอนุญาต" }, { status: 401 });
@@ -115,25 +146,24 @@ export async function POST(request: Request) {
       ...(isGptOss ? { reasoning_effort: "low" } : {}),
     };
 
-    // Normalize Kob AI's different OpenAI-compatible model responses here.
-    // The browser always receives one predictable SSE shape.
+    // Stream from Kob AI and normalize every provider/model chunk into one
+    // predictable OpenAI-compatible SSE shape for the browser.
     const upstream = await fetch(`${baseUrl()}/chat/completions`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        Accept: "application/json",
+        Accept: "text/event-stream, application/json",
       },
       body: JSON.stringify({
         ...payload,
-        stream: false,
+        stream: true,
       }),
       signal: request.signal,
     });
 
-    const raw = await upstream.text();
-
-    if (!upstream.ok) {
+    if (!upstream.ok || !upstream.body) {
+      const raw = await upstream.text().catch(() => "");
       let detail = "";
       try {
         const parsed = JSON.parse(raw);
@@ -145,6 +175,7 @@ export async function POST(request: Request) {
       } catch {
         detail = "";
       }
+
       return Response.json(
         {
           error:
@@ -156,81 +187,138 @@ export async function POST(request: Request) {
       );
     }
 
-    let data: any;
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      return Response.json(
-        { error: "รูปแบบคำตอบจาก Kob AI ไม่ถูกต้อง" },
-        { status: 502 },
-      );
-    }
-
-    const message = data?.choices?.[0]?.message;
-    const candidate =
-      // Only user-facing final content is eligible here. In particular, never
-      // fall back to reasoning/reasoning_content for gpt-oss.
-      message?.content ??
-      data?.choices?.[0]?.delta?.content ??
-      data?.choices?.[0]?.text ??
-      data?.message?.content ??
-      data?.content ??
-      data?.response ??
-      data?.text ??
-      "";
-
-    const content =
-      typeof candidate === "string"
-        ? candidate
-        : Array.isArray(candidate)
-          ? candidate
-              .map((part: any) =>
-                typeof part === "string"
-                  ? part
-                  : typeof part?.text === "string"
-                    ? part.text
-                    : typeof part?.content === "string"
-                      ? part.content
-                      : "",
-              )
-              .join("")
-          : "";
-
-    if (!content.trim()) {
-      const finishReason = data?.choices?.[0]?.finish_reason;
-      return Response.json(
-        {
-          error:
-            isGptOss && finishReason === "length"
-              ? "gpt-oss ใช้โทเคนสำหรับการคิดจนหมดก่อนสร้างคำตอบ กรุณาลองอีกครั้ง"
-              : "โมเดลตอบกลับมาแต่ไม่มีข้อความสำหรับแสดงผล",
-        },
-        { status: 502 },
-      );
-    }
-
+    const contentType = upstream.headers.get("content-type") || "";
     const encoder = new TextEncoder();
-    const safe = JSON.stringify({
-      choices: [{ delta: { content } }],
-    });
 
-    return new Response(
-      new ReadableStream({
-        start(controller) {
-          controller.enqueue(encoder.encode(`data: ${safe}\n\n`));
+    // Some compatible providers may ignore stream=true and return JSON.
+    if (!contentType.includes("text/event-stream")) {
+      const raw = await upstream.text();
+      let data: any;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        return Response.json(
+          { error: "รูปแบบคำตอบจาก Kob AI ไม่ถูกต้อง" },
+          { status: 502 },
+        );
+      }
+
+      const content = visibleText(data);
+      if (!content.trim()) {
+        return Response.json(
+          { error: "โมเดลตอบกลับมาแต่ไม่มีข้อความสำหรับแสดงผล" },
+          { status: 502 },
+        );
+      }
+
+      const safe = JSON.stringify({
+        choices: [{ delta: { content } }],
+      });
+
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode(`data: ${safe}\n\n`));
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            controller.close();
+          },
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/event-stream; charset=utf-8",
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+          },
+        },
+      );
+    }
+
+    const reader = upstream.body.getReader();
+    const decoder = new TextDecoder();
+
+    const stream = new ReadableStream({
+      async start(controller) {
+        let buffer = "";
+        let sentVisibleText = false;
+        let closed = false;
+
+        const close = () => {
+          if (closed) return;
+          closed = true;
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
-        },
-      }),
-      {
-        status: 200,
-        headers: {
-          "Content-Type": "text/event-stream; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          "X-Accel-Buffering": "no",
-        },
+        };
+
+        const emitPayload = (payload: string) => {
+          if (!payload || payload === "[DONE]") return;
+
+          try {
+            const parsed = JSON.parse(payload);
+            const text = visibleText(parsed);
+
+            // Intentionally ignore reasoning/reasoning_content. Only final
+            // user-facing content is streamed to the UI.
+            if (text) {
+              sentVisibleText = true;
+              const safe = JSON.stringify({
+                choices: [{ delta: { content: text } }],
+              });
+              controller.enqueue(encoder.encode(`data: ${safe}\n\n`));
+            }
+          } catch {
+            // Ignore malformed/non-JSON provider events without breaking chat.
+          }
+        };
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split(/\r?\n/);
+            buffer = lines.pop() ?? "";
+
+            for (const rawLine of lines) {
+              const line = rawLine.trim();
+              if (!line.startsWith("data:")) continue;
+              emitPayload(line.slice(5).trim());
+            }
+          }
+
+          buffer += decoder.decode();
+          for (const rawLine of buffer.split(/\r?\n/)) {
+            const line = rawLine.trim();
+            if (!line.startsWith("data:")) continue;
+            emitPayload(line.slice(5).trim());
+          }
+
+          if (!sentVisibleText) {
+            const error = JSON.stringify({
+              error: "โมเดลตอบกลับมาแต่ไม่มีข้อความสำหรับแสดงผล",
+            });
+            controller.enqueue(encoder.encode(`data: ${error}\n\n`));
+          }
+
+          close();
+        } catch (error) {
+          if (!closed) controller.error(error);
+        }
       },
-    );
+      cancel() {
+        reader.cancel().catch(() => {});
+      },
+    });
+
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no",
+      },
+    });
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       return new Response(null, { status: 499 });
