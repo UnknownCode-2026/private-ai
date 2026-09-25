@@ -40,8 +40,16 @@ export async function GET() {
     const data = JSON.parse(text);
     const models = Array.isArray(data?.data)
       ? data.data
-          .filter((item: unknown) => item && typeof item === "object" && "id" in item)
-          .map((item: { id: string; owned_by?: string }) => ({
+          .filter(
+            (item: unknown): item is { id: string; owned_by?: string } =>
+              Boolean(
+                item &&
+                  typeof item === "object" &&
+                  "id" in item &&
+                  typeof (item as { id?: unknown }).id === "string",
+              ),
+          )
+          .map((item) => ({
             id: item.id,
             ownedBy: item.owned_by || "",
           }))
