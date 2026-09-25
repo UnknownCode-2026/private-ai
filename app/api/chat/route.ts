@@ -3,10 +3,37 @@ import { isAuthorized } from "@/lib/auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type TextPart = { type: "text"; text: string };
+type ImagePart = { type: "image_url"; image_url: { url: string } };
+type ChatContent = string | Array<TextPart | ImagePart>;
+
 type ChatMessage = {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: ChatContent;
 };
+
+function validContent(content: unknown): content is ChatContent {
+  if (typeof content === "string") return Boolean(content.trim());
+  if (!Array.isArray(content) || !content.length) return false;
+  return content.every((part) => {
+    if (!part || typeof part !== "object") return false;
+    const value = part as Record<string, unknown>;
+    if (value.type === "text") {
+      return typeof value.text === "string" && Boolean(value.text.trim());
+    }
+    if (value.type === "image_url") {
+      const image = value.image_url;
+      if (!image || typeof image !== "object") return false;
+      const url = (image as Record<string, unknown>).url;
+      return (
+        typeof url === "string" &&
+        /^data:image\/(jpeg|png|webp);base64,/i.test(url) &&
+        url.length <= 7_500_000
+      );
+    }
+    return false;
+  });
+}
 
 function baseUrl() {
   return (process.env.KOB_AI_BASE_URL || "https://www.kob-ai.dev/v1").replace(
@@ -57,8 +84,7 @@ export async function POST(request: Request) {
       Boolean(
         message &&
         ["system", "user", "assistant"].includes(message.role) &&
-        typeof message.content === "string" &&
-        message.content.trim(),
+        validContent(message.content),
       ),
     )
     .slice(-80);
