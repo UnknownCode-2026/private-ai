@@ -78,11 +78,17 @@ for (const [width, height] of sizes) {
     if (width <= 900) await page.getByLabel("ปิดเมนู", { exact: true }).click();
     await noOverflow(page);
     await page.getByLabel("ข้อความถึง ThaiBan AI").fill("บรรทัด\n".repeat(40));
-    await page.setViewportSize({ width, height: Math.min(height, 400) });
-    const send = await page
-      .getByLabel("ส่งข้อความ", { exact: true })
-      .boundingBox();
-    expect(send!.y + send!.height).toBeLessThanOrEqual(Math.min(height, 400));
+    const compactHeight = Math.min(height, 400);
+    await page.setViewportSize({ width, height: compactHeight });
+    await page.evaluate(() => window.dispatchEvent(new Event("resize")));
+    await expect
+      .poll(async () => {
+        const send = await page
+          .getByLabel("ส่งข้อความ", { exact: true })
+          .boundingBox();
+        return send ? send.y + send.height : Number.POSITIVE_INFINITY;
+      })
+      .toBeLessThanOrEqual(compactHeight);
   });
 }
 
