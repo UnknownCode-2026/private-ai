@@ -999,11 +999,9 @@ export default function Home() {
             ☰
           </button>
           <div className="topbar-title">
-            <strong>
-              {activeConversation.title === "แชตใหม่"
-                ? "ThaiBan AI"
-                : activeConversation.title}
-            </strong>
+            {activeConversation.title !== "แชตใหม่" ? (
+              <strong>{activeConversation.title}</strong>
+            ) : null}
           </div>
           <button
             className="icon-button topbar-settings"
