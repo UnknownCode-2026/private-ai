@@ -2674,3 +2674,54 @@ body,
   font-weight: 500;
   white-space: nowrap;
 }
+
+
+/* Mobile code block overflow fix — keep the card inside the chat viewport. */
+.message-row.assistant,
+.message-row.assistant .message-body,
+.message-row.assistant .message-content {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.code-wrap {
+  box-sizing: border-box !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.code-wrap pre {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.code-wrap pre code {
+  display: block;
+  width: max-content;
+  min-width: 100%;
+  max-width: none;
+  white-space: pre !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
+
+@media (max-width: 599px) {
+  .message-row.assistant .code-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .message-row.assistant .code-wrap pre {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 48px 14px 18px !important;
+  }
+}
