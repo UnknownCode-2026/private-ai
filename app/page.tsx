@@ -336,14 +336,18 @@ export default function Home() {
   useEffect(() => {
     const viewport = window.visualViewport;
     const update = () => {
-      if (!viewport || viewport.scale !== 1) return;
+      if (viewport?.scale && viewport.scale !== 1) return;
+      const height = Math.min(
+        viewport?.height ?? window.innerHeight,
+        window.innerHeight,
+      );
       document.documentElement.style.setProperty(
         "--viewport-height",
-        `${viewport.height}px`,
+        `${height}px`,
       );
       document.documentElement.style.setProperty(
         "--viewport-top",
-        `${viewport.offsetTop}px`,
+        `${viewport?.offsetTop ?? 0}px`,
       );
     };
     const media = window.matchMedia("(max-width: 900px)");
@@ -351,10 +355,12 @@ export default function Home() {
     match();
     update();
     media.addEventListener("change", match);
+    window.addEventListener("resize", update);
     viewport?.addEventListener("resize", update);
     viewport?.addEventListener("scroll", update);
     return () => {
       media.removeEventListener("change", match);
+      window.removeEventListener("resize", update);
       viewport?.removeEventListener("resize", update);
       viewport?.removeEventListener("scroll", update);
     };
