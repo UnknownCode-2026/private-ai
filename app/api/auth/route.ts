@@ -1,12 +1,17 @@
 import { cookies } from "next/headers";
-import { AUTH_COOKIE, authToken, isAccessConfigured, verifyPin } from "@/lib/auth";
+import {
+  AUTH_COOKIE,
+  authToken,
+  isAccessConfigured,
+  verifyPin,
+} from "@/lib/auth";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   if (!isAccessConfigured()) {
     return Response.json(
-      { error: "ยังไม่ได้ตั้งค่า PRIVATE_AI_PIN บน Vercel" },
+      { error: "ระบบเข้าสู่ระบบยังไม่พร้อมใช้งาน" },
       { status: 503 },
     );
   }
@@ -18,7 +23,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "ข้อมูลไม่ถูกต้อง" }, { status: 400 });
   }
 
-  if (!body.pin || !verifyPin(body.pin)) {
+  if (typeof body?.pin !== "string" || !body.pin || !verifyPin(body.pin)) {
     return Response.json({ error: "รหัส PIN ไม่ถูกต้อง" }, { status: 401 });
   }
 

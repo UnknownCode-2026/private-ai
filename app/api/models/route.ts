@@ -4,7 +4,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function baseUrl() {
-  return (process.env.KOB_AI_BASE_URL || "https://www.kob-ai.dev/v1").replace(/\/$/, "");
+  return (process.env.KOB_AI_BASE_URL || "https://www.kob-ai.dev/v1").replace(
+    /\/$/,
+    "",
+  );
 }
 
 export async function GET() {
@@ -15,7 +18,7 @@ export async function GET() {
   const apiKey = process.env.KOB_AI_API_KEY;
   if (!apiKey) {
     return Response.json(
-      { error: "ยังไม่ได้ตั้งค่า KOB_AI_API_KEY บน Vercel" },
+      { error: "ระบบ AI ยังไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง" },
       { status: 503 },
     );
   }
@@ -32,7 +35,7 @@ export async function GET() {
     const text = await response.text();
     if (!response.ok) {
       return Response.json(
-        { error: "โหลดรายชื่อโมเดลจาก Kob AI ไม่สำเร็จ", detail: text.slice(0, 400) },
+        { error: "โหลดรายชื่อโมเดลจาก Kob AI ไม่สำเร็จ" },
         { status: response.status },
       );
     }
@@ -60,7 +63,6 @@ export async function GET() {
     return Response.json(
       {
         error: "เชื่อมต่อ Kob AI ไม่สำเร็จ",
-        detail: error instanceof Error ? error.message : "ไม่ทราบสาเหตุ",
       },
       { status: 502 },
     );

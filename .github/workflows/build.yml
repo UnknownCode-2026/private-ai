@@ -1,8 +1,8 @@
-name: ตรวจสอบ Private AI
+name: ตรวจสอบ ThaiBan AI
 
 on:
   push:
-    branches: [main]
+    branches: [main, thaibanai-v1.1-validation]
   workflow_dispatch:
 
 jobs:
@@ -23,3 +23,17 @@ jobs:
 
       - name: ตรวจสอบ Build
         run: npm run build
+
+      - name: ติดตั้งเบราว์เซอร์ทดสอบ
+        run: npx playwright install --with-deps chromium
+
+      - name: ทดสอบมือถือและฟีเจอร์เดิม
+        run: npm run test:e2e
+
+      - name: เก็บภาพและผลทดสอบ
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-validation
+          path: test-results/
+          retention-days: 7

@@ -43,13 +43,30 @@ type Settings = {
   theme: "dark" | "light";
 };
 
-const HISTORY_KEY = "private-ai-history-v1";
-const SETTINGS_KEY = "private-ai-settings-v1";
+const HISTORY_KEY = "thaiban-ai-history-v1";
+const SETTINGS_KEY = "thaiban-ai-settings-v1";
+
+// Copy only when the new key is absent. Never remove or overwrite the V1 backup.
+function migrateStorage() {
+  for (const [oldKey, newKey] of [
+    ["private-ai-history-v1", HISTORY_KEY],
+    ["private-ai-settings-v1", SETTINGS_KEY],
+  ]) {
+    if (localStorage.getItem(newKey) === null) {
+      const old = localStorage.getItem(oldKey);
+      if (old !== null) {
+        JSON.parse(old);
+        localStorage.setItem(newKey, old);
+        if (localStorage.getItem(newKey) !== old) throw new Error("migration");
+      }
+    }
+  }
+}
 
 const DEFAULT_SETTINGS: Settings = {
   model: "",
   systemPrompt:
-    "คุณคือ Private AI ผู้ช่วยส่วนตัวของผู้ใช้ ตอบเป็นภาษาไทยเป็นหลัก ให้คำตอบที่ชัดเจน ถูกต้อง กระชับเมื่อทำได้ และแสดงโค้ดใน code block เมื่อมีโค้ด",
+    "คุณคือ ThaiBan AI ผู้ช่วยส่วนตัวของผู้ใช้ ตอบเป็นภาษาไทยเป็นหลัก ให้คำตอบที่ชัดเจน ถูกต้อง กระชับเมื่อทำได้ และแสดงโค้ดใน code block เมื่อมีโค้ด",
   temperature: 0.7,
   maxTokens: 4096,
   enterToSend: true,
@@ -78,12 +95,20 @@ function textFromNode(node: ReactNode): string {
   if (typeof node === "string" || typeof node === "number") return String(node);
   if (Array.isArray(node)) return node.map(textFromNode).join("");
   if (node && typeof node === "object" && "props" in node) {
-    return textFromNode((node as { props?: { children?: ReactNode } }).props?.children);
+    return textFromNode(
+      (node as { props?: { children?: ReactNode } }).props?.children,
+    );
   }
   return "";
 }
 
-function Markdown({ children }: { children: string }) {
+function Markdown({
+  children,
+  onCopy,
+}: {
+  children: string;
+  onCopy: (value: string) => Promise<void>;
+}) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -93,6 +118,16 @@ function Markdown({ children }: { children: string }) {
             {linkChildren}
           </a>
         ),
+        table: ({ children: tableChildren }) => (
+          <div
+            className="table-scroll"
+            tabIndex={0}
+            role="region"
+            aria-label="ตาราง เลื่อนแนวนอนเพื่ออ่าน"
+          >
+            <table>{tableChildren}</table>
+          </div>
+        ),
         pre: ({ children: preChildren }) => {
           const code = textFromNode(preChildren).replace(/\n$/, "");
           return (
@@ -100,11 +135,13 @@ function Markdown({ children }: { children: string }) {
               <button
                 className="code-copy"
                 type="button"
-                onClick={() => navigator.clipboard.writeText(code)}
+                onClick={() => void onCopy(code)}
               >
                 คัดลอก
               </button>
-              <pre>{preChildren}</pre>
+              <pre tabIndex={0} aria-label="โค้ด เลื่อนแนวนอนเพื่ออ่าน">
+                {preChildren}
+              </pre>
             </div>
           );
         },
@@ -134,13 +171,20 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notice, setNotice] = useState("");
+  const [storageError, setStorageError] = useState(false);
+  const [mobile, setMobile] = useState(true);
+  const sidebarRef = useRef<HTMLElement | null>(null);
+  const settingsRef = useRef<HTMLElement | null>(null);
+  const messagesRef = useRef<HTMLDivElement | null>(null);
+  const followRef = useRef(true);
 
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const activeConversation = useMemo(
-    () => conversations.find((item) => item.id === activeId) ?? conversations[0],
+    () =>
+      conversations.find((item) => item.id === activeId) ?? conversations[0],
     [conversations, activeId],
   );
 
@@ -161,19 +205,61 @@ export default function Home() {
     if (!authenticated) return;
 
     try {
+      migrateStorage();
       const rawHistory = localStorage.getItem(HISTORY_KEY);
-      const storedHistory = rawHistory ? (JSON.parse(rawHistory) as Conversation[]) : [];
-      const initial = Array.isArray(storedHistory) && storedHistory.length
-        ? storedHistory
-        : [blankConversation()];
+      const storedHistory = rawHistory
+        ? (JSON.parse(rawHistory) as Conversation[])
+        : [];
+      if (
+        !Array.isArray(storedHistory) ||
+        storedHistory.some(
+          (chat) =>
+            !chat ||
+            typeof chat.id !== "string" ||
+            typeof chat.title !== "string" ||
+            !Array.isArray(chat.messages) ||
+            chat.messages.some(
+              (message: Message) =>
+                !message ||
+                typeof message.content !== "string" ||
+                !["user", "assistant"].includes(message.role),
+            ),
+        )
+      )
+        throw new Error("history");
+      const initial =
+        Array.isArray(storedHistory) && storedHistory.length
+          ? storedHistory
+          : [blankConversation()];
       setConversations(initial);
       setActiveId(initial[0].id);
 
       const rawSettings = localStorage.getItem(SETTINGS_KEY);
       if (rawSettings) {
-        setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(rawSettings) });
+        const stored = JSON.parse(rawSettings);
+        if (
+          !stored ||
+          typeof stored !== "object" ||
+          (stored.temperature !== undefined &&
+            (typeof stored.temperature !== "number" ||
+              !Number.isFinite(stored.temperature))) ||
+          (stored.systemPrompt !== undefined &&
+            typeof stored.systemPrompt !== "string")
+        )
+          throw new Error("settings");
+        if (
+          typeof stored.systemPrompt === "string" &&
+          stored.systemPrompt ===
+            "คุณคือ Private AI ผู้ช่วยส่วนตัวของผู้ใช้ ตอบเป็นภาษาไทยเป็นหลัก ให้คำตอบที่ชัดเจน ถูกต้อง กระชับเมื่อทำได้ และแสดงโค้ดใน code block เมื่อมีโค้ด"
+        )
+          stored.systemPrompt = DEFAULT_SETTINGS.systemPrompt;
+        setSettings({ ...DEFAULT_SETTINGS, ...stored });
       }
     } catch {
+      setStorageError(true);
+      setNotice(
+        "อ่านข้อมูลเดิมไม่ได้ จึงพักการบันทึกเพื่อรักษาประวัติเดิม กรุณาตรวจพื้นที่จัดเก็บแล้วรีเฟรช",
+      );
       const initial = [blankConversation()];
       setConversations(initial);
       setActiveId(initial[0].id);
@@ -188,17 +274,38 @@ export default function Home() {
 
   useEffect(() => {
     if (!authenticated || !historyReady) return;
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(conversations));
-  }, [conversations, authenticated, historyReady]);
+    if (storageError) return;
+    const timer = setTimeout(
+      () => {
+        try {
+          localStorage.setItem(HISTORY_KEY, JSON.stringify(conversations));
+        } catch {
+          setStorageError(true);
+          setNotice(
+            "บันทึกประวัติไม่ได้ กรุณาตรวจพื้นที่จัดเก็บก่อนปิดหน้านี้",
+          );
+        }
+      },
+      streaming ? 300 : 0,
+    );
+    return () => clearTimeout(timer);
+  }, [conversations, authenticated, historyReady, storageError, streaming]);
 
   useEffect(() => {
     if (!authenticated || !historyReady) return;
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    if (!storageError) {
+      try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      } catch {
+        setStorageError(true);
+        setNotice("บันทึกการตั้งค่าไม่ได้ กรุณาตรวจพื้นที่จัดเก็บ");
+      }
+    }
     document.documentElement.dataset.theme = settings.theme;
-  }, [settings, authenticated, historyReady]);
+  }, [settings, authenticated, historyReady, storageError]);
 
   useEffect(() => {
-    if (!authenticated) return;
+    if (!authenticated || !historyReady) return;
 
     fetch("/api/models", { cache: "no-store" })
       .then(async (response) => {
@@ -207,26 +314,132 @@ export default function Home() {
         const items = Array.isArray(data.models) ? data.models : [];
         setModels(items);
         setModelsError("");
-        if (!settings.model && items[0]?.id) {
-          setSettings((previous) => ({ ...previous, model: items[0].id }));
+        if (items[0]?.id) {
+          setSettings((previous) => ({
+            ...previous,
+            model: previous.model || items[0].id,
+          }));
         }
       })
       .catch((error) => {
-        setModelsError(error instanceof Error ? error.message : "โหลดโมเดลไม่สำเร็จ");
+        setModelsError("โหลดโมเดลไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อแล้วรีเฟรช");
       });
-  }, [authenticated, settings.model]);
+  }, [authenticated, historyReady]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: streaming ? "auto" : "smooth" });
+    if (followRef.current && messagesRef.current)
+      messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
   }, [activeConversation?.messages, streaming]);
 
-  function patchConversation(id: string, updater: (chat: Conversation) => Conversation) {
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const update = () => {
+      if (!viewport || viewport.scale !== 1) return;
+      document.documentElement.style.setProperty(
+        "--viewport-height",
+        `${viewport.height}px`,
+      );
+      document.documentElement.style.setProperty(
+        "--viewport-top",
+        `${viewport.offsetTop}px`,
+      );
+    };
+    const media = window.matchMedia("(max-width: 900px)");
+    const match = () => setMobile(media.matches);
+    match();
+    update();
+    media.addEventListener("change", match);
+    viewport?.addEventListener("resize", update);
+    viewport?.addEventListener("scroll", update);
+    return () => {
+      media.removeEventListener("change", match);
+      viewport?.removeEventListener("resize", update);
+      viewport?.removeEventListener("scroll", update);
+    };
+  }, []);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (el) {
+      el.style.height = "auto";
+      el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    }
+  }, [input, authenticated]);
+
+  useEffect(() => {
+    const panel = settingsOpen
+      ? settingsRef.current
+      : sidebarOpen && mobile
+        ? sidebarRef.current
+        : null;
+    if (!panel) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const targets = () =>
+      Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), input, textarea, select, [tabindex="0"]',
+        ),
+      ).filter((el) => el.getClientRects().length);
+    targets()[0]?.focus();
+    const key = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSettingsOpen(false);
+        setSidebarOpen(false);
+      }
+      if (event.key === "Tab") {
+        const elements = targets();
+        const first = elements[0];
+        const last = elements.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("keydown", key);
+      previous?.focus();
+    };
+  }, [sidebarOpen, settingsOpen, mobile]);
+
+  async function copyText(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setNotice("คัดลอกแล้ว");
+    } catch {
+      setNotice("คัดลอกไม่ได้ กรุณาเลือกข้อความแล้วคัดลอกด้วยตนเอง");
+    }
+  }
+
+  useEffect(() => {
+    if (!authenticated || !historyReady || storageError) return;
+    const save = () => {
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(conversations));
+      } catch {
+        /* Existing data remains untouched. */
+      }
+    };
+    window.addEventListener("pagehide", save);
+    return () => window.removeEventListener("pagehide", save);
+  }, [conversations, authenticated, historyReady, storageError]);
+
+  function patchConversation(
+    id: string,
+    updater: (chat: Conversation) => Conversation,
+  ) {
     setConversations((previous) =>
       previous.map((chat) => (chat.id === id ? updater(chat) : chat)),
     );
   }
 
   function newChat() {
+    if (streaming) return;
+    followRef.current = true;
     const chat = blankConversation();
     setConversations((previous) => [chat, ...previous]);
     setActiveId(chat.id);
@@ -236,6 +449,8 @@ export default function Home() {
   }
 
   function selectChat(id: string) {
+    if (streaming) return;
+    followRef.current = true;
     setActiveId(id);
     setSidebarOpen(false);
   }
@@ -243,7 +458,11 @@ export default function Home() {
   function renameChat(chat: Conversation) {
     const name = window.prompt("ตั้งชื่อแชต", chat.title)?.trim();
     if (!name) return;
-    patchConversation(chat.id, (item) => ({ ...item, title: name, updatedAt: Date.now() }));
+    patchConversation(chat.id, (item) => ({
+      ...item,
+      title: name,
+      updatedAt: Date.now(),
+    }));
   }
 
   function deleteChat(id: string) {
@@ -272,18 +491,32 @@ export default function Home() {
         body: JSON.stringify({ pin }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "เข้าสู่ระบบไม่สำเร็จ");
+      if (!response.ok) {
+        setPinError(
+          response.status === 401
+            ? "รหัส PIN ไม่ถูกต้อง"
+            : "เข้าสู่ระบบไม่สำเร็จ กรุณาลองอีกครั้ง",
+        );
+        return;
+      }
       setAuthenticated(true);
       setPin("");
     } catch (error) {
-      setPinError(error instanceof Error ? error.message : "เข้าสู่ระบบไม่สำเร็จ");
+      setPinError("เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบเครือข่ายแล้วลองอีกครั้ง");
     } finally {
       setAuthBusy(false);
     }
   }
 
   async function logout() {
-    await fetch("/api/auth", { method: "DELETE" }).catch(() => undefined);
+    stopStreaming();
+    try {
+      const response = await fetch("/api/auth", { method: "DELETE" });
+      if (!response.ok) throw new Error();
+    } catch {
+      setNotice("ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้ง");
+      return;
+    }
     setAuthenticated(false);
     setHistoryReady(false);
     setConversations([]);
@@ -338,9 +571,15 @@ export default function Home() {
         }),
       });
 
+      if (response.status === 401) {
+        setNotice("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่");
+        setAuthenticated(false);
+        setHistoryReady(false);
+        return;
+      }
       if (!response.ok || !response.body) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || data.detail || "AI ตอบกลับไม่สำเร็จ");
+        throw new Error(data.error || "AI ตอบกลับไม่สำเร็จ");
       }
 
       const reader = response.body.getReader();
@@ -354,7 +593,9 @@ export default function Home() {
           ...chat,
           updatedAt: Date.now(),
           messages: chat.messages.map((message) =>
-            message.id === assistant.id ? { ...message, content: full } : message,
+            message.id === assistant.id
+              ? { ...message, content: full }
+              : message,
           ),
         }));
       };
@@ -386,7 +627,7 @@ export default function Home() {
         }
       }
 
-      if (!full && buffer.trim()) {
+      if (buffer.trim()) {
         try {
           const json = JSON.parse(buffer.replace(/^data:\s*/, ""));
           const text =
@@ -404,7 +645,10 @@ export default function Home() {
           ...chat,
           messages: chat.messages.map((message) =>
             message.id === assistant.id
-              ? { ...message, content: "ไม่ได้รับข้อความจากโมเดล กรุณาลองอีกครั้ง" }
+              ? {
+                  ...message,
+                  content: "ไม่ได้รับข้อความจากโมเดล กรุณาลองอีกครั้ง",
+                }
               : message,
           ),
         }));
@@ -412,8 +656,16 @@ export default function Home() {
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         setNotice("หยุดการตอบแล้ว");
+        patchConversation(chatId, (chat) => ({
+          ...chat,
+          messages: chat.messages.map((item) =>
+            item.id === assistant.id && !item.content
+              ? { ...item, content: "หยุดการตอบแล้ว" }
+              : item,
+          ),
+        }));
       } else {
-        const message = error instanceof Error ? error.message : "เกิดข้อผิดพลาด";
+        const message = "การเชื่อมต่อ AI ขัดข้อง กรุณาลองใหม่อีกครั้ง";
         patchConversation(chatId, (chat) => ({
           ...chat,
           messages: chat.messages.map((item) =>
@@ -451,6 +703,7 @@ export default function Home() {
         ? content.replace(/\s+/g, " ").slice(0, 36) || "แชตใหม่"
         : chat.title;
 
+    followRef.current = true;
     setInput("");
     patchConversation(chat.id, (item) => ({
       ...item,
@@ -503,7 +756,7 @@ export default function Home() {
   if (sessionLoading) {
     return (
       <main className="center-screen">
-        <div className="brand-mark">P</div>
+        <div className="brand-mark">TB</div>
         <div className="loading-dots" aria-label="กำลังโหลด">
           <span />
           <span />
@@ -517,20 +770,12 @@ export default function Home() {
     return (
       <main className="center-screen pad">
         <section className="auth-card">
-          <div className="brand-mark">P</div>
-          <h1>Private AI</h1>
+          <div className="brand-mark">TB</div>
+          <h1>ThaiBan AI</h1>
           <p className="muted">
             ระบบยังไม่พร้อมใช้งาน เพราะยังไม่ได้ตั้งค่าความลับของโปรเจกต์
           </p>
-          <div className="setup-box">
-            <strong>ตั้งค่าบน Vercel ก่อนใช้งาน</strong>
-            <code>KOB_AI_API_KEY</code>
-            <code>PRIVATE_AI_PIN</code>
-            <code>KOB_AI_BASE_URL=https://www.kob-ai.dev/v1</code>
-          </div>
-          <p className="tiny">
-            ห้ามใส่ Token ไว้ในโค้ดหรือค่าที่ขึ้นต้นด้วย NEXT_PUBLIC_
-          </p>
+          <p className="tiny">กรุณาตรวจสอบการตั้งค่าระบบแล้วลองใหม่อีกครั้ง</p>
         </section>
       </main>
     );
@@ -540,9 +785,9 @@ export default function Home() {
     return (
       <main className="center-screen pad">
         <form className="auth-card" onSubmit={login}>
-          <div className="brand-mark">P</div>
-          <h1>Private AI</h1>
-          <p className="muted">ผู้ช่วย AI ส่วนตัวของคุณ</p>
+          <div className="brand-mark">TB</div>
+          <h1>ThaiBan AI</h1>
+          <p className="muted">AI ส่วนตัวของคุณ</p>
           <label className="field-label" htmlFor="pin">
             รหัส PIN
           </label>
@@ -555,13 +800,24 @@ export default function Home() {
             value={pin}
             onChange={(event) => setPin(event.target.value)}
             placeholder="กรอกรหัส PIN"
-            autoFocus
+            required
+            aria-invalid={Boolean(pinError)}
+            aria-describedby={pinError ? "pin-error" : undefined}
           />
-          {pinError ? <p className="error-text">{pinError}</p> : null}
-          <button className="primary-button" type="submit" disabled={authBusy || !pin}>
-            {authBusy ? "กำลังตรวจสอบ..." : "เข้าสู่ Private AI"}
+          {pinError ? (
+            <p id="pin-error" role="alert" className="error-text">
+              {pinError}
+            </p>
+          ) : null}
+          <button
+            className="primary-button"
+            type="submit"
+            disabled={authBusy || !pin}
+          >
+            {authBusy ? "กำลังตรวจสอบ..." : "เข้าสู่ระบบ"}
           </button>
-          <p className="tiny">ออกแบบสำหรับใช้งานส่วนตัวบนมือถือ</p>
+          <p className="tiny">พื้นที่ส่วนตัว สำหรับทุกความคิดของคุณ</p>
+          <span className="version-label">ThaiBan AI V1.1</span>
         </form>
       </main>
     );
@@ -586,21 +842,38 @@ export default function Home() {
         onClick={() => setSidebarOpen(false)}
       />
 
-      <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
+      <aside
+        ref={sidebarRef}
+        inert={(mobile && !sidebarOpen) || settingsOpen}
+        aria-label="เมนูและประวัติแชต"
+        role={mobile ? "dialog" : undefined}
+        aria-modal={mobile && sidebarOpen ? true : undefined}
+        className={`sidebar ${sidebarOpen ? "open" : ""}`}
+      >
         <div className="sidebar-head">
           <div className="brand-row">
-            <div className="brand-mark small">P</div>
+            <div className="brand-mark small">TB</div>
             <div>
-              <strong>Private AI</strong>
-              <span>พื้นที่ส่วนตัว</span>
+              <strong>ThaiBan AI</strong>
+              <span>พื้นที่ส่วนตัว · V1.1</span>
             </div>
           </div>
-          <button className="icon-button mobile-only" onClick={() => setSidebarOpen(false)}>
+          <button
+            type="button"
+            aria-label="ปิดเมนู"
+            className="icon-button mobile-only"
+            onClick={() => setSidebarOpen(false)}
+          >
             ✕
           </button>
         </div>
 
-        <button className="new-chat-button" type="button" onClick={newChat}>
+        <button
+          disabled={streaming}
+          className="new-chat-button"
+          type="button"
+          onClick={newChat}
+        >
           <span>＋</span>
           แชตใหม่
         </button>
@@ -612,7 +885,12 @@ export default function Home() {
               key={chat.id}
               className={`chat-item ${chat.id === activeConversation.id ? "active" : ""}`}
             >
-              <button className="chat-select" type="button" onClick={() => selectChat(chat.id)}>
+              <button
+                disabled={streaming}
+                className="chat-select"
+                type="button"
+                onClick={() => selectChat(chat.id)}
+              >
                 <span className="chat-title">{chat.title}</span>
                 <span className="chat-date">
                   {new Date(chat.updatedAt).toLocaleDateString("th-TH", {
@@ -621,10 +899,21 @@ export default function Home() {
                   })}
                 </span>
               </button>
-              <button className="chat-more" type="button" onClick={() => renameChat(chat)}>
+              <button
+                aria-label="เปลี่ยนชื่อแชต"
+                className="chat-more"
+                type="button"
+                onClick={() => renameChat(chat)}
+              >
                 ✎
               </button>
-              <button className="chat-more danger" type="button" onClick={() => deleteChat(chat.id)}>
+              <button
+                disabled={streaming}
+                aria-label="ลบแชต"
+                className="chat-more danger"
+                type="button"
+                onClick={() => deleteChat(chat.id)}
+              >
                 ×
               </button>
             </div>
@@ -641,9 +930,18 @@ export default function Home() {
         </div>
       </aside>
 
-      <section className="main-panel">
+      <section
+        className="main-panel"
+        inert={settingsOpen || (mobile && sidebarOpen)}
+      >
         <header className="topbar">
-          <button className="icon-button" type="button" onClick={() => setSidebarOpen(true)}>
+          <button
+            className="icon-button"
+            type="button"
+            aria-label="เปิดเมนู"
+            aria-expanded={sidebarOpen}
+            onClick={() => setSidebarOpen(true)}
+          >
             ☰
           </button>
           <div className="topbar-title">
@@ -654,7 +952,10 @@ export default function Home() {
             className="model-select"
             value={settings.model}
             onChange={(event) =>
-              setSettings((previous) => ({ ...previous, model: event.target.value }))
+              setSettings((previous) => ({
+                ...previous,
+                model: event.target.value,
+              }))
             }
             aria-label="เลือกโมเดล"
           >
@@ -667,12 +968,23 @@ export default function Home() {
           </select>
         </header>
 
-        <div className="messages">
+        <div
+          className="messages"
+          ref={messagesRef}
+          onScroll={() => {
+            const el = messagesRef.current;
+            if (el)
+              followRef.current =
+                el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+          }}
+        >
           {activeConversation.messages.length === 0 ? (
             <section className="welcome">
-              <div className="brand-mark hero">P</div>
-              <h1>สวัสดีครับ</h1>
-              <p>วันนี้ให้ Private AI ช่วยอะไร?</p>
+              <div className="brand-mark hero">TB</div>
+              <h1>
+                สวัสดีครับ <span>👋</span>
+              </h1>
+              <p>วันนี้ให้ ThaiBan AI ช่วยอะไร?</p>
               {modelsError ? (
                 <div className="warning-card">
                   <strong>ยังโหลดโมเดลไม่ได้</strong>
@@ -681,15 +993,18 @@ export default function Home() {
               ) : (
                 <div className="status-pill">
                   <span className="status-dot" />
-                  {settings.model ? "พร้อมใช้งาน" : "กำลังเตรียมโมเดล"}
+                  {settings.model ? "AI พร้อมใช้งาน" : "กำลังเตรียมโมเดล"}
                 </div>
               )}
+              <p className="current-model">
+                {settings.model || "กำลังโหลดโมเดล"}
+              </p>
               <div className="suggestions">
                 {[
                   "ช่วยเขียนโค้ดให้หน่อย",
-                  "สรุปข้อความนี้ให้เข้าใจง่าย",
-                  "ช่วยคิดไอเดียโปรเจกต์ใหม่",
-                  "อธิบายเรื่องนี้แบบละเอียด",
+                  "สรุปข้อความให้ฉัน",
+                  "ช่วยคิดไอเดีย",
+                  "อธิบายเรื่องนี้แบบเข้าใจง่าย",
                 ].map((text) => (
                   <button
                     key={text}
@@ -706,16 +1021,21 @@ export default function Home() {
             </section>
           ) : (
             activeConversation.messages.map((message) => (
-              <article key={message.id} className={`message-row ${message.role}`}>
+              <article
+                key={message.id}
+                className={`message-row ${message.role}`}
+              >
                 <div className="message-avatar">
-                  {message.role === "user" ? "คุณ" : "P"}
+                  {message.role === "user" ? "คุณ" : "TB"}
                 </div>
                 <div className="message-body">
                   <div className="message-meta">
-                    <strong>{message.role === "user" ? "คุณ" : "Private AI"}</strong>
+                    <strong>
+                      {message.role === "user" ? "คุณ" : "ThaiBan AI"}
+                    </strong>
                     <button
                       type="button"
-                      onClick={() => navigator.clipboard.writeText(message.content)}
+                      onClick={() => void copyText(message.content)}
                     >
                       คัดลอก
                     </button>
@@ -723,7 +1043,7 @@ export default function Home() {
                   <div className="message-content">
                     {message.role === "assistant" ? (
                       message.content ? (
-                        <Markdown>{message.content}</Markdown>
+                        <Markdown onCopy={copyText}>{message.content}</Markdown>
                       ) : (
                         <div className="typing">
                           <span />
@@ -744,7 +1064,11 @@ export default function Home() {
 
         <div className="composer-zone">
           {notice ? (
-            <button className="notice" type="button" onClick={() => setNotice("")}>
+            <button
+              className="notice"
+              type="button"
+              onClick={() => setNotice("")}
+            >
               {notice} <span>×</span>
             </button>
           ) : null}
@@ -757,6 +1081,7 @@ export default function Home() {
 
           <div className="composer">
             <textarea
+              aria-label="ข้อความถึง ThaiBan AI"
               ref={inputRef}
               value={input}
               onChange={(event) => {
@@ -765,7 +1090,7 @@ export default function Home() {
                 event.target.style.height = `${Math.min(event.target.scrollHeight, 160)}px`;
               }}
               onKeyDown={onInputKeyDown}
-              placeholder="พิมพ์ข้อความถึง Private AI..."
+              placeholder="พิมพ์ข้อความถึง ThaiBan AI..."
               rows={1}
               disabled={streaming}
             />
@@ -790,7 +1115,9 @@ export default function Home() {
               </button>
             )}
           </div>
-          <p className="composer-note">AI อาจตอบผิดได้ ควรตรวจสอบข้อมูลสำคัญอีกครั้ง</p>
+          <p className="composer-note">
+            AI อาจตอบผิดได้ ควรตรวจสอบข้อมูลสำคัญอีกครั้ง
+          </p>
         </div>
       </section>
 
@@ -798,14 +1125,26 @@ export default function Home() {
         className={`backdrop settings-backdrop ${settingsOpen ? "show" : ""}`}
         onClick={() => setSettingsOpen(false)}
       />
-      <section className={`settings-sheet ${settingsOpen ? "open" : ""}`}>
+      <section
+        ref={settingsRef}
+        inert={!settingsOpen}
+        role="dialog"
+        aria-modal="true"
+        aria-label="การตั้งค่า"
+        className={`settings-sheet ${settingsOpen ? "open" : ""}`}
+      >
         <div className="sheet-handle" />
         <div className="settings-head">
           <div>
             <h2>การตั้งค่า</h2>
-            <p>ปรับ Private AI ให้เหมาะกับการใช้งานของคุณ</p>
+            <p>ปรับ ThaiBan AI ให้เหมาะกับการใช้งานของคุณ</p>
           </div>
-          <button className="icon-button" type="button" onClick={() => setSettingsOpen(false)}>
+          <button
+            className="icon-button"
+            type="button"
+            aria-label="ปิดการตั้งค่า"
+            onClick={() => setSettingsOpen(false)}
+          >
             ✕
           </button>
         </div>
@@ -816,7 +1155,10 @@ export default function Home() {
             <select
               value={settings.model}
               onChange={(event) =>
-                setSettings((previous) => ({ ...previous, model: event.target.value }))
+                setSettings((previous) => ({
+                  ...previous,
+                  model: event.target.value,
+                }))
               }
             >
               <option value="">เลือกโมเดล</option>
@@ -870,7 +1212,10 @@ export default function Home() {
               onChange={(event) =>
                 setSettings((previous) => ({
                   ...previous,
-                  maxTokens: Math.min(32768, Math.max(256, Number(event.target.value))),
+                  maxTokens: Math.min(
+                    32768,
+                    Math.max(256, Number(event.target.value)),
+                  ),
                 }))
               }
             />
@@ -883,6 +1228,9 @@ export default function Home() {
             </div>
             <button
               type="button"
+              role="switch"
+              aria-label="กด Enter เพื่อส่ง"
+              aria-checked={settings.enterToSend}
               className={`toggle ${settings.enterToSend ? "on" : ""}`}
               onClick={() =>
                 setSettings((previous) => ({
@@ -901,14 +1249,18 @@ export default function Home() {
               <button
                 type="button"
                 className={settings.theme === "dark" ? "active" : ""}
-                onClick={() => setSettings((previous) => ({ ...previous, theme: "dark" }))}
+                onClick={() =>
+                  setSettings((previous) => ({ ...previous, theme: "dark" }))
+                }
               >
                 มืด
               </button>
               <button
                 type="button"
                 className={settings.theme === "light" ? "active" : ""}
-                onClick={() => setSettings((previous) => ({ ...previous, theme: "light" }))}
+                onClick={() =>
+                  setSettings((previous) => ({ ...previous, theme: "light" }))
+                }
               >
                 สว่าง
               </button>
@@ -918,13 +1270,14 @@ export default function Home() {
           <div className="info-card">
             <strong>ข้อมูลส่วนตัวบนเครื่อง</strong>
             <p>
-              ประวัติแชตและการตั้งค่าของ V1 เก็บไว้ในเบราว์เซอร์เครื่องนี้
-              ส่วนข้อความที่ถาม AI จะถูกส่งผ่านเซิร์ฟเวอร์ของ Private AI ไปยัง Kob AI
-              เพื่อประมวลผล
+              ประวัติแชตและการตั้งค่า เก็บไว้ในเบราว์เซอร์เครื่องนี้
+              ส่วนข้อความที่ถาม AI จะถูกส่งผ่านเซิร์ฟเวอร์ของ ThaiBan AI ไปยัง
+              Kob AI เพื่อประมวลผล
             </p>
           </div>
 
           <button
+            disabled={streaming || storageError}
             className="danger-button"
             type="button"
             onClick={() => {
