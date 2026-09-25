@@ -2110,3 +2110,453 @@ html[data-theme="light"] .message-content {
   background-repeat: no-repeat;
   color: transparent;
 }
+
+
+/* Conversation-first redesign — clean, spacious, ThaiBan AI identity */
+:root {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f3f4f6;
+  --surface-3: #e9eaec;
+  --text: #161616;
+  --muted: #727272;
+  --border: rgba(0, 0, 0, .08);
+  --primary: #111111;
+  --primary-2: #111111;
+  --shadow-soft: 0 8px 30px rgba(0,0,0,.06);
+  --shadow-float: 0 3px 18px rgba(0,0,0,.08);
+}
+html[data-theme="dark"] {
+  --bg: #0d0d0d;
+  --surface: #0d0d0d;
+  --surface-2: #212121;
+  --surface-3: #2f2f2f;
+  --text: #ececec;
+  --muted: #a0a0a0;
+  --border: rgba(255, 255, 255, .08);
+  --primary: #ececec;
+  --primary-2: #ececec;
+  --shadow-soft: none;
+  --shadow-float: 0 2px 14px rgba(0,0,0,.28);
+}
+
+body,
+.main-panel,
+.center-screen {
+  background: var(--bg) !important;
+}
+
+.main-panel {
+  position: relative;
+}
+
+.topbar {
+  grid-template-columns: 44px minmax(0, 1fr) 44px !important;
+  grid-template-areas: "menu title settings" !important;
+  min-height: 58px;
+  padding: max(6px, env(safe-area-inset-top)) 12px 6px !important;
+  border-bottom: 0 !important;
+  background: color-mix(in srgb, var(--bg) 94%, transparent) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.topbar > .icon-button:first-child {
+  grid-area: menu;
+}
+.topbar-title {
+  grid-area: title;
+  justify-self: center;
+  width: min(100%, 520px);
+  text-align: center;
+}
+.topbar-title strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -.2px;
+}
+.topbar-title span,
+.model-select {
+  display: none !important;
+}
+.topbar-settings {
+  grid-area: settings;
+  display: grid !important;
+}
+.icon-button {
+  width: 42px;
+  height: 42px;
+  min-height: 42px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+  font-size: 22px;
+}
+.icon-button:hover {
+  background: var(--surface-2);
+}
+
+.messages {
+  width: 100%;
+  padding: 26px max(18px, calc((100% - 780px) / 2)) 140px !important;
+  background: var(--bg);
+}
+.message-row {
+  display: block !important;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 0 28px !important;
+}
+.message-avatar {
+  display: none !important;
+}
+.message-body {
+  width: 100%;
+  min-width: 0;
+}
+.message-row.assistant .message-body {
+  display: flex;
+  flex-direction: column;
+}
+.message-row.assistant .message-content {
+  order: 1;
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-size: 16px;
+  line-height: 1.75;
+}
+.message-row.assistant .message-meta {
+  order: 2;
+  justify-content: flex-start;
+  min-height: 34px;
+  margin: 10px 0 0;
+}
+.message-row.assistant .message-meta strong {
+  display: none;
+}
+.message-row.assistant .message-meta button {
+  margin: 0;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 9px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 19px;
+  font-weight: 400;
+}
+.message-row.assistant .message-meta button:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.message-row.user {
+  padding-left: 0 !important;
+}
+.message-row.user .message-body {
+  width: fit-content;
+  max-width: min(82%, 620px);
+  margin-left: auto;
+}
+.message-row.user .message-meta {
+  display: none !important;
+}
+.message-row.user .message-content,
+.user .message-content {
+  width: auto !important;
+  max-width: 100% !important;
+  padding: 11px 15px !important;
+  border: 0 !important;
+  border-radius: 20px !important;
+  background: var(--surface-2) !important;
+  box-shadow: none !important;
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.6;
+}
+.message-row.user .message-content > p {
+  margin: 0;
+}
+
+.welcome {
+  width: min(680px, 100%);
+  min-height: 64vh;
+  margin: 0 auto;
+  padding: 8vh 0 42px !important;
+  justify-content: center;
+  text-align: center;
+}
+.welcome .hero {
+  width: 54px !important;
+  height: 54px !important;
+  margin-bottom: 20px;
+  border-radius: 16px !important;
+  filter: none !important;
+}
+.welcome h1 {
+  margin: 0;
+  font-size: clamp(26px, 7vw, 36px) !important;
+  font-weight: 650;
+  letter-spacing: -.7px !important;
+  color: var(--text);
+}
+.welcome > p {
+  margin: 10px auto 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+.status-pill,
+.current-model {
+  display: none !important;
+}
+.warning-card {
+  margin-top: 18px;
+}
+.suggestions {
+  width: min(620px, 100%);
+  margin-top: 28px !important;
+  gap: 8px !important;
+}
+.suggestions button {
+  min-height: 48px !important;
+  padding: 10px 14px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 16px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--text);
+  text-align: left;
+  font-size: 14px;
+}
+.suggestions button:hover {
+  transform: none !important;
+  background: var(--surface-2) !important;
+  border-color: var(--border) !important;
+  box-shadow: none !important;
+}
+
+.composer-zone {
+  position: sticky;
+  bottom: 0;
+  z-index: 8;
+  width: 100%;
+  padding:
+    12px
+    max(14px, calc((100% - 790px) / 2))
+    max(10px, env(safe-area-inset-bottom)) !important;
+  background:
+    linear-gradient(to top, var(--bg) 70%, color-mix(in srgb, var(--bg) 94%, transparent) 88%, transparent) !important;
+}
+.composer {
+  min-height: 60px;
+  width: 100% !important;
+  max-width: 790px !important;
+  margin: 0 auto;
+  padding: 6px 7px 6px 8px !important;
+  gap: 6px;
+  border: 1px solid var(--border) !important;
+  border-radius: 28px !important;
+  background: var(--surface) !important;
+  box-shadow: var(--shadow-float) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.composer:focus-within {
+  border-color: color-mix(in srgb, var(--text) 18%, var(--border)) !important;
+  box-shadow: var(--shadow-float) !important;
+}
+.composer textarea {
+  min-height: 46px;
+  padding: 11px 4px !important;
+  font-size: 16px;
+  line-height: 1.45;
+}
+.attach-button,
+.send-button {
+  width: 46px !important;
+  height: 46px !important;
+  min-width: 46px !important;
+  flex-basis: 46px !important;
+  border-radius: 50% !important;
+  box-shadow: none !important;
+}
+.attach-button {
+  background: transparent !important;
+  color: var(--text) !important;
+  font-size: 30px !important;
+}
+.attach-button:hover {
+  background: var(--surface-2) !important;
+}
+.send-button {
+  background: var(--text) !important;
+  color: var(--bg) !important;
+}
+.send-button:disabled {
+  opacity: .28;
+}
+.send-button.stop {
+  background: var(--text) !important;
+}
+.composer-note {
+  margin: 7px auto 0;
+  color: var(--muted);
+  opacity: .8;
+  font-size: 11px;
+  text-align: center;
+}
+.regen-button {
+  min-height: 38px !important;
+  margin: 0 auto 10px;
+  border: 1px solid var(--border) !important;
+  border-radius: 999px !important;
+  background: var(--bg) !important;
+  box-shadow: none !important;
+  color: var(--muted);
+  font-size: 13px;
+}
+.notice {
+  max-width: 790px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.file-preview,
+.image-preview {
+  max-width: 790px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  border-radius: 16px !important;
+  background: var(--surface) !important;
+  box-shadow: none !important;
+}
+.chat-file {
+  margin: 0 0 8px !important;
+  width: min(100%, 360px) !important;
+  background: color-mix(in srgb, var(--surface-3) 55%, transparent) !important;
+}
+.chat-image {
+  margin: 0 0 8px !important;
+}
+
+.code-wrap {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 16px 0 !important;
+  border-radius: 14px !important;
+  box-shadow: none !important;
+}
+.code-wrap pre {
+  padding-top: 48px !important;
+}
+.table-scroll {
+  margin: 16px 0;
+  border-radius: 14px !important;
+}
+
+.sidebar {
+  background: var(--surface) !important;
+  box-shadow: none !important;
+  border-right: 1px solid var(--border) !important;
+}
+.brand-row .brand-mark.small {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+}
+.new-chat-button {
+  min-height: 44px !important;
+  border-radius: 12px !important;
+  background: transparent !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
+  border: 1px solid var(--border) !important;
+}
+.chat-item {
+  border-radius: 10px;
+}
+.chat-item.active {
+  background: var(--surface-2) !important;
+}
+.sidebar-footer {
+  background: var(--surface) !important;
+}
+
+@media (max-width: 599px) {
+  .topbar {
+    min-height: 56px;
+    padding-left: max(10px, env(safe-area-inset-left)) !important;
+    padding-right: max(10px, env(safe-area-inset-right)) !important;
+  }
+  .messages {
+    padding:
+      18px
+      max(14px, env(safe-area-inset-left))
+      126px
+      max(14px, env(safe-area-inset-right)) !important;
+  }
+  .message-row {
+    margin-bottom: 24px !important;
+  }
+  .message-row.user .message-body {
+    max-width: 86%;
+  }
+  .message-row.assistant .message-content {
+    font-size: 16px;
+    line-height: 1.72;
+  }
+  .welcome {
+    min-height: 62vh;
+    padding-top: 10vh !important;
+  }
+  .suggestions {
+    grid-template-columns: 1fr !important;
+  }
+  .composer-zone {
+    padding:
+      8px
+      max(8px, env(safe-area-inset-left))
+      max(8px, env(safe-area-inset-bottom))
+      max(8px, env(safe-area-inset-right)) !important;
+  }
+  .composer {
+    border-radius: 27px !important;
+  }
+  .composer-note {
+    display: none !important;
+  }
+  .message-row.assistant .code-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+  }
+  .table-scroll {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+@media (min-width: 901px) {
+  .topbar > .icon-button:first-child {
+    display: none !important;
+  }
+  .topbar-settings {
+    display: grid !important;
+  }
+  .topbar {
+    grid-template-columns: 44px minmax(0, 1fr) 44px !important;
+  }
+  .topbar-title {
+    grid-column: 2;
+  }
+}
