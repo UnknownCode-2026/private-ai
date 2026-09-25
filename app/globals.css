@@ -2966,3 +2966,169 @@ html[data-theme="light"] .code-toolbar {
 html[data-theme="light"] .code-wrap > div:not(.code-toolbar) {
   background: #1e1e1e !important;
 }
+
+
+/* ThaiBan AI model picker */
+.model-picker-trigger {
+  width: 100%;
+  min-height: 64px;
+  margin-top: 9px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  cursor: pointer;
+}
+.model-picker-trigger:disabled {
+  opacity: .55;
+  cursor: default;
+}
+.model-picker-trigger > span:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.model-picker-trigger small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.model-picker-trigger strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 650;
+}
+.model-picker-chevron {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 20px;
+}
+.model-picker-backdrop {
+  z-index: 84 !important;
+}
+.model-picker-sheet {
+  position: fixed;
+  z-index: 85;
+  left: 50%;
+  bottom: 0;
+  width: min(100%, 560px);
+  max-height: min(76dvh, 680px);
+  padding: 8px 14px calc(14px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -18px 50px rgba(0,0,0,.16);
+  transform: translate(-50%, 105%);
+  visibility: hidden;
+  transition: transform .22s ease, visibility .22s;
+}
+.model-picker-sheet.open {
+  transform: translate(-50%, 0);
+  visibility: visible;
+}
+.model-picker-head {
+  padding: 4px 2px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.model-picker-head h2 {
+  margin: 0;
+  font-size: 19px;
+}
+.model-picker-head p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.model-search-wrap {
+  padding: 2px 0 10px;
+}
+.model-search-wrap input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  outline: none;
+  font: inherit;
+  font-size: 14px;
+}
+.model-search-wrap input:focus {
+  border-color: var(--muted);
+}
+.model-picker-list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 0 4px;
+}
+.model-picker-item {
+  width: 100%;
+  min-height: 54px;
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: 24px minmax(0,1fr) auto;
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: 11px;
+  cursor: pointer;
+}
+.model-picker-item:hover,
+.model-picker-item:focus-visible {
+  background: var(--bg);
+  outline: none;
+}
+.model-picker-item.selected {
+  background: var(--bg);
+}
+.model-picker-mark {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font-size: 13px;
+}
+.model-picker-item.selected .model-picker-mark {
+  border-color: currentColor;
+}
+.model-picker-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+}
+.model-picker-item small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.model-picker-empty {
+  padding: 32px 12px;
+  color: var(--muted);
+  text-align: center;
+  font-size: 13px;
+}
