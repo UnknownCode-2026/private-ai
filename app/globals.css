@@ -1148,3 +1148,334 @@ a {
   text-overflow: ellipsis;
   width: 100%;
 }
+
+
+/* ThaiBan AI V1.1 — visual polish only. No application logic changes. */
+:root {
+  --bg: #f6f8fc;
+  --surface: rgba(255, 255, 255, 0.88);
+  --surface-2: #eef2f8;
+  --surface-3: #e4eaf4;
+  --text: #111827;
+  --muted: #667085;
+  --border: rgba(15, 23, 42, 0.09);
+  --primary: #5b67f1;
+  --primary-2: #7c5cff;
+  --danger: #e5484d;
+  --success: #16a36a;
+  --shadow-soft: 0 18px 55px rgba(15, 23, 42, 0.08);
+  --shadow-float: 0 14px 38px rgba(15, 23, 42, 0.12);
+}
+html[data-theme="dark"] {
+  --bg: #090b10;
+  --surface: rgba(20, 23, 31, 0.88);
+  --surface-2: #171b24;
+  --surface-3: #202633;
+  --text: #f7f8fb;
+  --muted: #929aab;
+  --border: rgba(255, 255, 255, 0.075);
+  --primary: #7582ff;
+  --primary-2: #9b7cff;
+  --danger: #ff6b72;
+  --success: #42d392;
+  --shadow-soft: 0 22px 60px rgba(0, 0, 0, 0.28);
+  --shadow-float: 0 18px 48px rgba(0, 0, 0, 0.4);
+}
+
+body {
+  background:
+    radial-gradient(circle at 50% -15%, color-mix(in srgb, var(--primary) 12%, transparent), transparent 34rem),
+    var(--bg);
+}
+
+.center-screen {
+  background:
+    radial-gradient(circle at 50% 10%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 30rem),
+    var(--bg);
+}
+.auth-card {
+  max-width: 440px;
+  padding: 34px 26px;
+  border: 1px solid var(--border);
+  border-radius: 30px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+}
+.auth-card .brand-mark {
+  width: 72px;
+  height: 72px;
+  margin-bottom: 22px;
+  filter: drop-shadow(0 12px 24px color-mix(in srgb, var(--primary) 24%, transparent));
+}
+.auth-card h1 {
+  font-size: clamp(31px, 8vw, 38px);
+  letter-spacing: -1.25px;
+}
+.pin-input,
+.setting-block select,
+.setting-block textarea,
+.setting-block input[type="number"] {
+  box-shadow: inset 0 0 0 1px transparent;
+  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+.pin-input:focus,
+.setting-block select:focus,
+.setting-block textarea:focus,
+.setting-block input[type="number"]:focus {
+  border-color: color-mix(in srgb, var(--primary) 70%, var(--border));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+.primary-button,
+.new-chat-button,
+.send-button {
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--primary) 22%, transparent);
+  transition: transform .16s ease, box-shadow .16s ease, filter .16s ease;
+}
+.primary-button:hover,
+.new-chat-button:hover,
+.send-button:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 11px 28px color-mix(in srgb, var(--primary) 30%, transparent);
+}
+.primary-button:active,
+.new-chat-button:active,
+.send-button:active {
+  transform: scale(.975);
+}
+
+.topbar {
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.model-select {
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+}
+.icon-button {
+  transition: background .16s ease, transform .16s ease;
+}
+.icon-button:active {
+  transform: scale(.94);
+}
+
+.welcome {
+  max-width: 720px;
+}
+.welcome .hero {
+  width: 82px;
+  height: 82px;
+  filter: drop-shadow(0 16px 28px color-mix(in srgb, var(--primary) 24%, transparent));
+}
+.welcome h1 {
+  font-size: clamp(29px, 7.5vw, 42px);
+  letter-spacing: -1.1px;
+}
+.status-pill {
+  padding: 5px 11px;
+  border: 1px solid color-mix(in srgb, var(--success) 22%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--success) 7%, transparent);
+}
+.suggestions {
+  gap: 12px;
+}
+.suggestions button {
+  position: relative;
+  min-height: 66px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: 0 7px 24px rgba(0, 0, 0, .035);
+  transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+.suggestions button:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--primary) 25%, var(--border));
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+.suggestions button:active {
+  transform: scale(.985);
+}
+
+.message-row {
+  margin-bottom: 32px;
+}
+.message-avatar {
+  border: 1px solid var(--border);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, .06);
+}
+.message-meta {
+  min-height: 38px;
+}
+.message-meta button {
+  opacity: .72;
+  transition: opacity .16s ease, background .16s ease;
+}
+.message-meta button:hover {
+  opacity: 1;
+  background: var(--surface-2);
+}
+.message-content {
+  letter-spacing: -.05px;
+}
+.user .message-content {
+  padding: 13px 17px;
+  border: 1px solid color-mix(in srgb, var(--primary) 10%, var(--border));
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--primary) 10%, var(--surface-2)),
+    var(--surface-2)
+  );
+  border-radius: 20px 7px 20px 20px;
+}
+.code-wrap {
+  border: 1px solid rgba(255,255,255,.07);
+  box-shadow: 0 12px 34px rgba(0,0,0,.16);
+}
+.table-scroll {
+  background: var(--surface);
+}
+
+.composer-zone {
+  background: linear-gradient(to top, var(--bg) 72%, transparent);
+  padding-top: 12px;
+}
+.composer {
+  border-color: var(--border);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.composer:focus-within {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  box-shadow:
+    var(--shadow-float),
+    0 0 0 3px color-mix(in srgb, var(--primary) 8%, transparent);
+}
+.send-button {
+  border-radius: 15px;
+}
+
+.sidebar {
+  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 96%, var(--bg));
+  box-shadow: 18px 0 50px rgba(0,0,0,.14);
+}
+.brand-row strong {
+  letter-spacing: -.3px;
+}
+.new-chat-button {
+  min-height: 48px;
+  border-radius: 15px;
+}
+.chat-item {
+  transition: background .15s ease, transform .15s ease;
+}
+.chat-item:hover {
+  background: color-mix(in srgb, var(--surface-2) 78%, transparent);
+}
+.chat-item.active {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--primary) 13%, var(--surface-2)),
+    var(--surface-2)
+  );
+}
+.sidebar-footer {
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+}
+
+.backdrop {
+  background: rgba(2, 6, 16, .62);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+.settings-sheet {
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 98%, var(--bg));
+  box-shadow: 0 -22px 60px rgba(0,0,0,.22);
+}
+.sheet-handle {
+  opacity: .45;
+}
+.setting-block {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--bg) 42%, transparent);
+}
+.theme-picker > div {
+  border: 1px solid var(--border);
+}
+.theme-picker button.active {
+  box-shadow: 0 4px 14px rgba(0,0,0,.08);
+}
+.notice {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-soft);
+}
+.regen-button {
+  min-height: 40px;
+  border: 1px solid var(--border);
+}
+
+@media (max-width: 599px) {
+  .auth-card {
+    max-width: calc(100% - 24px);
+    padding: 30px 20px;
+    border-radius: 26px;
+  }
+  .topbar {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+  .messages {
+    padding-top: 18px;
+  }
+  .welcome {
+    padding-top: 24px;
+  }
+  .welcome .hero {
+    width: 72px;
+    height: 72px;
+  }
+  .suggestions button {
+    min-height: 62px;
+  }
+  .message-row {
+    margin-bottom: 26px;
+  }
+  .composer-zone {
+    padding-left: max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
+  }
+  .composer {
+    border-radius: 21px;
+  }
+  .settings-sheet {
+    border-radius: 28px 28px 0 0;
+  }
+}
+@media (min-width: 901px) {
+  .sidebar {
+    box-shadow: none;
+  }
+  .main-panel {
+    background:
+      radial-gradient(circle at 55% -20%, color-mix(in srgb, var(--primary) 6%, transparent), transparent 32rem),
+      var(--bg);
+  }
+  .composer-zone {
+    padding-bottom: 18px;
+  }
+}
