@@ -83,6 +83,13 @@ type Settings = {
 };
 
 const CONTEXT_TOKEN_BUDGET = 24_000;
+const RECENT_CONTEXT_RATIO = 0.65;
+
+type ClientContextTurn = {
+  messages: Message[];
+  cost: number;
+  text: string;
+};
 
 function estimateContextTokens(message: Message) {
   let characters = message.content.length;
@@ -96,6 +103,60 @@ function estimateContextTokens(message: Message) {
   const imageAllowance = message.image ? 1_200 : 0;
 
   return Math.max(1, Math.ceil(characters / 2.5) + imageAllowance + 8);
+}
+
+function contextSearchTerms(value: string) {
+  const stopWords = new Set([
+    "the", "and", "for", "with", "this", "that", "from", "what", "how", "please",
+    "ช่วย", "หน่อย", "ครับ", "ค่ะ", "คะ", "นี้", "นั้น", "และ", "หรือ", "คือ",
+    "ให้", "ได้", "ไหม", "อะไร", "ยังไง", "ทำ", "เพิ่ม", "ระบบ",
+  ]);
+  const matches =
+    value.normalize("NFKC").toLowerCase().match(/[\p{L}\p{N}_-]{2,}/gu) || [];
+  return new Set(matches.filter((term) => !stopWords.has(term)));
+}
+
+function contextMessageText(message: Message) {
+  return [message.content, message.file?.content || ""].filter(Boolean).join("\n");
+}
+
+function buildClientContextTurns(messages: Message[]) {
+  const turns: ClientContextTurn[] = [];
+  let current: ClientContextTurn | null = null;
+
+  for (const message of messages) {
+    if (message.role === "user") {
+      current = {
+        messages: [message],
+        cost: estimateContextTokens(message),
+        text: contextMessageText(message),
+      };
+      turns.push(current);
+      continue;
+    }
+
+    if (current) {
+      current.messages.push(message);
+      current.cost += estimateContextTokens(message);
+      current.text += "\n" + contextMessageText(message);
+    }
+  }
+
+  return turns;
+}
+
+function clientContextRelevance(
+  query: Set<string>,
+  turn: ClientContextTurn,
+  recency: number,
+) {
+  if (!query.size) return recency;
+  const terms = contextSearchTerms(turn.text);
+  let overlap = 0;
+  for (const term of query) {
+    if (terms.has(term)) overlap += 1;
+  }
+  return overlap * 12 + recency;
 }
 
 function selectConversationContext(
@@ -119,34 +180,67 @@ function selectConversationContext(
 
   const latest = eligible[eligible.length - 1];
   const latestCost = estimateContextTokens(latest);
-  const selected: Message[] = [];
+  const turns = buildClientContextTurns(eligible);
+
+  if (!turns.length) {
+    return {
+      messages: [latest],
+      usedMessages: 1,
+      totalMessages: eligible.length,
+      droppedMessages: Math.max(0, eligible.length - 1),
+      estimatedTokens: latestCost,
+      latestTooLarge: latestCost > budget,
+    };
+  }
+
+  const latestUser =
+    [...eligible].reverse().find((message) => message.role === "user") ?? latest;
+  const query = contextSearchTerms(latestUser.content);
+  const selected = new Set<number>();
+  const recentTarget = Math.floor(budget * RECENT_CONTEXT_RATIO);
   let used = 0;
 
-  for (let index = eligible.length - 1; index >= 0; index -= 1) {
-    const message = eligible[index];
-    const cost = estimateContextTokens(message);
-
-    if (index === eligible.length - 1 || used + cost <= budget) {
-      selected.push(message);
-      used += cost;
-    } else {
-      break;
-    }
+  for (let index = turns.length - 1; index >= 0; index -= 1) {
+    const turn = turns[index];
+    if (selected.size > 0 && used + turn.cost > recentTarget) break;
+    if (used + turn.cost > budget && selected.size > 0) break;
+    selected.add(index);
+    used += turn.cost;
   }
 
-  selected.reverse();
-
-  // Never start the context with an orphaned assistant reply.
-  while (selected.length > 1 && selected[0]?.role === "assistant") {
-    used -= estimateContextTokens(selected[0]);
-    selected.shift();
+  if (!selected.has(turns.length - 1)) {
+    selected.add(turns.length - 1);
+    used += turns[turns.length - 1].cost;
   }
+
+  const candidates = turns
+    .map((turn, index) => ({
+      index,
+      turn,
+      score: clientContextRelevance(
+        query,
+        turn,
+        index / Math.max(1, turns.length),
+      ),
+    }))
+    .filter((candidate) => !selected.has(candidate.index))
+    .sort((a, b) => b.score - a.score || b.index - a.index);
+
+  for (const candidate of candidates) {
+    if (used + candidate.turn.cost > budget) continue;
+    selected.add(candidate.index);
+    used += candidate.turn.cost;
+  }
+
+  const selectedMessages = [...selected]
+    .sort((a, b) => a - b)
+    .flatMap((index) => turns[index].messages);
 
   return {
-    messages: selected,
-    usedMessages: selected.length,
+    messages: selectedMessages,
+    usedMessages: selectedMessages.length,
     totalMessages: eligible.length,
-    droppedMessages: Math.max(0, eligible.length - selected.length),
+    droppedMessages: Math.max(0, eligible.length - selectedMessages.length),
     estimatedTokens: Math.max(0, used),
     latestTooLarge: latestCost > budget,
   };
