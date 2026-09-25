@@ -103,11 +103,16 @@ export async function POST(request: Request) {
   );
 
   try {
+    const isGptOss = /^gpt-oss(?::|-)/i.test(body.model);
+
     const payload = {
       model: body.model,
       messages,
-      temperature,
-      max_tokens: maxTokens,
+      // gpt-oss is a reasoning model. Keep its sampling conservative and
+      // explicitly request low reasoning effort for short interactive chats.
+      temperature: isGptOss ? Math.min(temperature, 0.6) : temperature,
+      max_tokens: isGptOss ? Math.max(maxTokens, 1024) : maxTokens,
+      ...(isGptOss ? { reasoning_effort: "low" } : {}),
     };
 
     // Normalize Kob AI's different OpenAI-compatible model responses here.
@@ -161,8 +166,11 @@ export async function POST(request: Request) {
       );
     }
 
+    const message = data?.choices?.[0]?.message;
     const candidate =
-      data?.choices?.[0]?.message?.content ??
+      // Only user-facing final content is eligible here. In particular, never
+      // fall back to reasoning/reasoning_content for gpt-oss.
+      message?.content ??
       data?.choices?.[0]?.delta?.content ??
       data?.choices?.[0]?.text ??
       data?.message?.content ??
@@ -189,8 +197,14 @@ export async function POST(request: Request) {
           : "";
 
     if (!content.trim()) {
+      const finishReason = data?.choices?.[0]?.finish_reason;
       return Response.json(
-        { error: "โมเดลตอบกลับมาแต่ไม่มีข้อความ" },
+        {
+          error:
+            isGptOss && finishReason === "length"
+              ? "gpt-oss ใช้โทเคนสำหรับการคิดจนหมดก่อนสร้างคำตอบ กรุณาลองอีกครั้ง"
+              : "โมเดลตอบกลับมาแต่ไม่มีข้อความสำหรับแสดงผล",
+        },
         { status: 502 },
       );
     }
