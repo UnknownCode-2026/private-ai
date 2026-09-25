@@ -1479,3 +1479,53 @@ body {
     padding-bottom: 18px;
   }
 }
+
+
+/* Mobile chat width polish: use the full available screen width. */
+@media (max-width: 599px) {
+  .messages {
+    padding-left: max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
+  }
+
+  .message-row {
+    width: 100%;
+    max-width: none;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .message-row.user {
+    width: 100%;
+    max-width: none;
+    padding-left: 36px;
+  }
+
+  .message-body,
+  .message-content {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .user .message-content {
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .code-wrap,
+  .table-scroll {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .composer-zone {
+    width: 100%;
+    padding-left: max(6px, env(safe-area-inset-left));
+    padding-right: max(6px, env(safe-area-inset-right));
+  }
+
+  .composer {
+    width: 100%;
+    max-width: none;
+  }
+}
