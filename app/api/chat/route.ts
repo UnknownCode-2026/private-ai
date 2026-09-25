@@ -124,7 +124,7 @@ function searchTerms(value: string) {
   ]);
 
   const matches =
-    value.normalize("NFKC").toLowerCase().match(/[\\p{L}\\p{N}_-]{2,}/gu) || [];
+    value.normalize("NFKC").toLowerCase().match(/[\p{L}\p{N}_-]{2,}/gu) || [];
 
   return new Set(matches.filter((term) => !stopWords.has(term)));
 }
@@ -134,7 +134,7 @@ function classifyTask(intent: string, hasDocument: boolean): TaskProfile {
   const creative =
     /(creative|brainstorm|story|poem|caption|slogan|content|แต่ง|คิดไอเดีย|คอนเทนต์|แคปชั่น|สโลแกน|เรื่องสั้น)/i.test(text);
   const code =
-    /(code|debug|bug|error|api|sql|typescript|javascript|python|php|react|next\\.?js|css|html|github|vercel|โค้ด|บัค|ดีบัก|เอพีไอ|ฐานข้อมูล)/i.test(text);
+    /(code|debug|bug|error|api|sql|typescript|javascript|python|php|react|next\.?js|css|html|github|vercel|โค้ด|บัค|ดีบัก|เอพีไอ|ฐานข้อมูล)/i.test(text);
   const analysis =
     /(analy[sz]e|compare|reason|architecture|strategy|calculate|evaluate|explain|plan|วิเคราะห์|เปรียบเทียบ|เหตุผล|สถาปัตยกรรม|กลยุทธ์|คำนวณ|ประเมิน|อธิบาย|วางแผน|ออกแบบ)/i.test(text);
 
@@ -142,7 +142,7 @@ function classifyTask(intent: string, hasDocument: boolean): TaskProfile {
   if (intent.length > 900) score += 3;
   else if (intent.length > 300) score += 2;
   else if (intent.length > 120) score += 1;
-  if (/\\bfunction\\b|\\bclass\\b|\\bSELECT\\b|\\bconst\\b|\\blet\\b/i.test(intent))
+  if (/\bfunction\b|\bclass\b|\bSELECT\b|\bconst\b|\blet\b/i.test(intent))
     score += 2;
   if (code || analysis) score += 2;
   if ((intent.match(/[?？]/g) || []).length >= 3) score += 1;
