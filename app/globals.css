@@ -1529,3 +1529,137 @@ body {
     max-width: none;
   }
 }
+
+
+/* Markdown readability: visually separate content types and code. */
+.message-content {
+  --md-heading: #9aa7ff;
+  --md-link: #7dd3fc;
+  --md-strong: #f8fafc;
+  --md-quote: #c4b5fd;
+  --md-inline-code: #c4a7ff;
+  --md-code-text: #d8e4ff;
+  --md-code-tag: #ff8fa3;
+}
+html[data-theme="light"] .message-content {
+  --md-heading: #4f46e5;
+  --md-link: #0369a1;
+  --md-strong: #111827;
+  --md-quote: #6d28d9;
+  --md-inline-code: #6d28d9;
+  --md-code-text: #24324a;
+  --md-code-tag: #be123c;
+}
+
+.message-content h1,
+.message-content h2,
+.message-content h3 {
+  color: var(--md-heading);
+  font-weight: 750;
+}
+.message-content strong {
+  color: var(--md-strong);
+  font-weight: 750;
+}
+.message-content a {
+  color: var(--md-link);
+  text-decoration-color: color-mix(in srgb, var(--md-link) 45%, transparent);
+  text-underline-offset: 3px;
+}
+.message-content blockquote {
+  color: var(--md-quote);
+  background: color-mix(in srgb, var(--md-quote) 7%, transparent);
+  border-left-color: var(--md-quote);
+  border-radius: 0 10px 10px 0;
+}
+.message-content li::marker {
+  color: var(--primary-2);
+  font-weight: 700;
+}
+.message-content :not(pre) > code {
+  color: var(--md-inline-code);
+  background: color-mix(in srgb, var(--md-inline-code) 11%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--md-inline-code) 15%, var(--border));
+  padding: 2px 6px;
+  border-radius: 7px;
+  font-weight: 600;
+}
+
+.code-wrap {
+  background: #0b1120;
+  border-color: rgba(148, 163, 184, .13);
+}
+.code-wrap pre {
+  color: var(--md-code-text);
+  tab-size: 2;
+}
+.code-wrap pre code {
+  color: inherit;
+  background: transparent;
+}
+.code-copy {
+  background: rgba(30, 41, 59, .92);
+  color: #dbeafe;
+  border: 1px solid rgba(148, 163, 184, .12);
+}
+.code-copy:hover {
+  background: #273449;
+}
+.table-scroll {
+  border-color: color-mix(in srgb, var(--primary) 15%, var(--border));
+}
+.message-content th {
+  color: var(--md-heading);
+  font-weight: 700;
+}
+.message-content hr {
+  height: 1px;
+  border: 0;
+  background: var(--border);
+  margin: 24px 0;
+}
+
+/* Browser-native token classes when a highlighter supplies them. */
+.message-content .token.comment,
+.message-content .token.prolog,
+.message-content .token.doctype,
+.message-content .token.cdata {
+  color: #77839a;
+}
+.message-content .token.punctuation {
+  color: #aab4c8;
+}
+.message-content .token.property,
+.message-content .token.tag,
+.message-content .token.boolean,
+.message-content .token.number,
+.message-content .token.constant,
+.message-content .token.symbol {
+  color: #ff8fa3;
+}
+.message-content .token.selector,
+.message-content .token.attr-name,
+.message-content .token.string,
+.message-content .token.char,
+.message-content .token.builtin {
+  color: #86efac;
+}
+.message-content .token.operator,
+.message-content .token.entity,
+.message-content .token.url,
+.message-content .token.variable {
+  color: #7dd3fc;
+}
+.message-content .token.atrule,
+.message-content .token.attr-value,
+.message-content .token.function,
+.message-content .token.class-name {
+  color: #fcd34d;
+}
+.message-content .token.keyword {
+  color: #c4b5fd;
+}
+.message-content .token.regex,
+.message-content .token.important {
+  color: #fdba74;
+}
