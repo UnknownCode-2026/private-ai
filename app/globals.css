@@ -1663,3 +1663,26 @@ html[data-theme="light"] .message-content {
 .message-content .token.important {
   color: #fdba74;
 }
+
+
+/* Mobile code blocks: expand to the full chat viewport width. */
+@media (max-width: 599px) {
+  .message-row.assistant .code-wrap {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    margin-left: calc(-40px);
+    border-radius: 16px;
+  }
+
+  .message-row.assistant .code-wrap pre {
+    width: 100%;
+    max-width: 100%;
+    padding: 52px 14px 18px;
+    overflow-x: auto;
+  }
+
+  .message-row.assistant .code-copy {
+    top: 8px;
+    right: 8px;
+  }
+}
