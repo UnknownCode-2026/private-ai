@@ -10,6 +10,8 @@ import {
   useState,
 } from "react";
 import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import remarkGfm from "remark-gfm";
 
 type Role = "user" | "assistant";
@@ -261,19 +263,56 @@ function Markdown({
         ),
         pre: ({ children: preChildren }) => {
           const code = textFromNode(preChildren).replace(/\n$/, "");
+          const child = Array.isArray(preChildren)
+            ? preChildren[0]
+            : preChildren;
+          const className =
+            child && typeof child === "object" && "props" in child
+              ? String(
+                  (child as { props?: { className?: string } }).props
+                    ?.className || "",
+                )
+              : "";
+          const languageMatch = /language-([\w-]+)/.exec(className);
+          const language = languageMatch?.[1] || "text";
+
           return (
             <div className="code-wrap">
-              <button
-                className="code-copy"
-                type="button"
-                onClick={() => void onCopy(code)}
+              <div className="code-toolbar">
+                <span className="code-language">{language}</span>
+                <button
+                  className="code-copy"
+                  type="button"
+                  onClick={() => void onCopy(code)}
+                  aria-label="คัดลอกโค้ด"
+                >
+                  <ThaiBanIcon name="copy" size={16} />
+                </button>
+              </div>
+              <SyntaxHighlighter
+                language={language}
+                style={vscDarkPlus}
+                PreTag="div"
+                CodeTag="code"
+                customStyle={{
+                  margin: 0,
+                  padding: "18px 16px 20px",
+                  background: "#1e1e1e",
+                  fontSize: "13px",
+                  lineHeight: "1.7",
+                  overflowX: "auto",
+                }}
+                codeTagProps={{
+                  style: {
+                    fontFamily:
+                      "ui-monospace, SFMono-Regular, Consolas, monospace",
+                  },
+                }}
+                wrapLongLines={false}
+                showLineNumbers={false}
               >
-                <ThaiBanIcon name="copy" size={16} />
-                <span className="sr-only">คัดลอก</span>
-              </button>
-              <pre tabIndex={0} aria-label="โค้ด เลื่อนแนวนอนเพื่ออ่าน">
-                {preChildren}
-              </pre>
+                {code}
+              </SyntaxHighlighter>
             </div>
           );
         },
