@@ -1816,3 +1816,47 @@ html[data-theme="light"] .message-content {
     font-size: 30px;
   }
 }
+
+
+/* Attachment button: match the send button and suppress browser file-control chrome. */
+.image-input {
+  display: none !important;
+}
+
+.attach-button {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  flex: 0 0 48px;
+  align-self: flex-end;
+  padding: 0;
+  border: 0;
+  border-radius: 15px;
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: none;
+  font-size: 27px;
+  font-weight: 400;
+  line-height: 1;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.attach-button:hover {
+  background: var(--surface-3);
+}
+
+.attach-button:active {
+  transform: scale(.96);
+}
+
+@media (max-width: 599px) {
+  .attach-button {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    flex-basis: 48px;
+    border-radius: 15px;
+    font-size: 28px;
+  }
+}
