@@ -12,6 +12,25 @@ type ChatMessage = {
   content: ChatContent;
 };
 
+type ApiErrorCode =
+  | "model_unavailable"
+  | "rate_limit"
+  | "timeout"
+  | "provider_unavailable"
+  | "invalid_request"
+  | "empty_response"
+  | "stream_interrupted";
+
+type ApiError = {
+  code: ApiErrorCode;
+  message: string;
+  retryable: boolean;
+};
+
+function errorResponse(error: ApiError, status: number) {
+  return Response.json({ error }, { status });
+}
+
 function validContent(content: unknown): content is ChatContent {
   if (typeof content === "string") return Boolean(content.trim());
   if (!Array.isArray(content) || !content.length) return false;
@@ -72,6 +91,53 @@ function visibleText(payload: any): string {
   return "";
 }
 
+function classifyUpstreamError(status: number, detail: string): ApiError {
+  if (status === 429) {
+    return {
+      code: "rate_limit",
+      message: "มีการใช้งานโมเดลมากเกินไปในขณะนี้ กรุณารอสักครู่แล้วลองอีกครั้ง",
+      retryable: true,
+    };
+  }
+
+  if (status === 408 || status === 504) {
+    return {
+      code: "timeout",
+      message: "โมเดลใช้เวลาตอบนานเกินกำหนด กรุณาลองอีกครั้ง",
+      retryable: true,
+    };
+  }
+
+  if (
+    status === 404 ||
+    ([400, 422].includes(status) &&
+      /model|not found|unavailable|unsupported/i.test(detail))
+  ) {
+    return {
+      code: "model_unavailable",
+      message: "โมเดลนี้ยังไม่พร้อมใช้งาน กรุณาลองอีกครั้งหรือเลือกโมเดลอื่น",
+      retryable: true,
+    };
+  }
+
+  if (status >= 500 || status === 401 || status === 403) {
+    return {
+      code: "provider_unavailable",
+      message: "เชื่อมต่อ Kob AI ไม่สำเร็จ กรุณาลองอีกครั้งในอีกสักครู่",
+      retryable: true,
+    };
+  }
+
+  return {
+    code: "invalid_request",
+    message: "ไม่สามารถส่งคำขอนี้ให้โมเดลได้ กรุณาตรวจสอบข้อความแล้วลองอีกครั้ง",
+    retryable: false,
+  };
+}
+
+function streamError(error: ApiError) {
+  return `data: ${JSON.stringify({ error })}\n\n`;
+}
 
 export async function POST(request: Request) {
   if (!(await isAuthorized())) {
@@ -80,9 +146,13 @@ export async function POST(request: Request) {
 
   const apiKey = process.env.KOB_AI_API_KEY;
   if (!apiKey) {
-    return Response.json(
-      { error: "ระบบ AI ยังไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง" },
-      { status: 503 },
+    return errorResponse(
+      {
+        code: "provider_unavailable",
+        message: "ระบบ AI ยังไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง",
+        retryable: true,
+      },
+      503,
     );
   }
 
@@ -96,7 +166,14 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return Response.json({ error: "ข้อมูลคำขอไม่ถูกต้อง" }, { status: 400 });
+    return errorResponse(
+      {
+        code: "invalid_request",
+        message: "ข้อมูลคำขอไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง",
+        retryable: false,
+      },
+      400,
+    );
   }
 
   if (
@@ -104,9 +181,13 @@ export async function POST(request: Request) {
     !Array.isArray(body.messages) ||
     body.messages.length === 0
   ) {
-    return Response.json(
-      { error: "กรุณาเลือกโมเดลและใส่ข้อความ" },
-      { status: 400 },
+    return errorResponse(
+      {
+        code: "invalid_request",
+        message: "กรุณาเลือกโมเดลและใส่ข้อความ",
+        retryable: false,
+      },
+      400,
     );
   }
 
@@ -121,9 +202,13 @@ export async function POST(request: Request) {
     .slice(-80);
 
   if (!messages.length) {
-    return Response.json(
-      { error: "ไม่พบข้อความที่ส่งให้ AI" },
-      { status: 400 },
+    return errorResponse(
+      {
+        code: "invalid_request",
+        message: "ไม่พบข้อความที่ส่งให้ AI",
+        retryable: false,
+      },
+      400,
     );
   }
 
@@ -133,21 +218,25 @@ export async function POST(request: Request) {
     Math.max(256, Number(body.maxTokens ?? 4096)),
   );
 
+  const upstreamController = new AbortController();
+  let connectionTimedOut = false;
+  const onClientAbort = () => upstreamController.abort();
+  request.signal.addEventListener("abort", onClientAbort, { once: true });
+  const connectionTimer = setTimeout(() => {
+    connectionTimedOut = true;
+    upstreamController.abort();
+  }, 60_000);
+
   try {
     const isGptOss = /^gpt-oss(?::|-)/i.test(body.model);
-
     const payload = {
       model: body.model,
       messages,
-      // gpt-oss is a reasoning model. Keep its sampling conservative and
-      // explicitly request low reasoning effort for short interactive chats.
       temperature: isGptOss ? Math.min(temperature, 0.6) : temperature,
       max_tokens: isGptOss ? Math.max(maxTokens, 1024) : maxTokens,
       ...(isGptOss ? { reasoning_effort: "low" } : {}),
     };
 
-    // Stream from Kob AI and normalize every provider/model chunk into one
-    // predictable OpenAI-compatible SSE shape for the browser.
     const upstream = await fetch(`${baseUrl()}/chat/completions`, {
       method: "POST",
       headers: {
@@ -159,55 +248,59 @@ export async function POST(request: Request) {
         ...payload,
         stream: true,
       }),
-      signal: request.signal,
+      signal: upstreamController.signal,
     });
 
+    clearTimeout(connectionTimer);
+
     if (!upstream.ok || !upstream.body) {
+      request.signal.removeEventListener("abort", onClientAbort);
       const raw = await upstream.text().catch(() => "");
       let detail = "";
       try {
         const parsed = JSON.parse(raw);
-        detail =
-          parsed?.error?.message ||
-          parsed?.error ||
-          parsed?.message ||
-          "";
+        const value =
+          parsed?.error?.message ?? parsed?.error ?? parsed?.message ?? "";
+        detail = typeof value === "string" ? value : "";
       } catch {
         detail = "";
       }
-
-      return Response.json(
-        {
-          error:
-            typeof detail === "string" && detail.trim()
-              ? detail.trim()
-              : "Kob AI ตอบกลับด้วยข้อผิดพลาด",
-        },
-        { status: upstream.status || 502 },
+      return errorResponse(
+        classifyUpstreamError(upstream.status || 502, detail),
+        upstream.status || 502,
       );
     }
 
     const contentType = upstream.headers.get("content-type") || "";
     const encoder = new TextEncoder();
 
-    // Some compatible providers may ignore stream=true and return JSON.
     if (!contentType.includes("text/event-stream")) {
       const raw = await upstream.text();
+      request.signal.removeEventListener("abort", onClientAbort);
+
       let data: any;
       try {
         data = JSON.parse(raw);
       } catch {
-        return Response.json(
-          { error: "รูปแบบคำตอบจาก Kob AI ไม่ถูกต้อง" },
-          { status: 502 },
+        return errorResponse(
+          {
+            code: "provider_unavailable",
+            message: "Kob AI ส่งคำตอบในรูปแบบที่ระบบอ่านไม่ได้ กรุณาลองอีกครั้ง",
+            retryable: true,
+          },
+          502,
         );
       }
 
       const content = visibleText(data);
       if (!content.trim()) {
-        return Response.json(
-          { error: "โมเดลตอบกลับมาแต่ไม่มีข้อความสำหรับแสดงผล" },
-          { status: 502 },
+        return errorResponse(
+          {
+            code: "empty_response",
+            message: "โมเดลตอบกลับมาแต่ไม่มีข้อความ กรุณาลองอีกครั้ง",
+            retryable: true,
+          },
+          502,
         );
       }
 
@@ -248,17 +341,15 @@ export async function POST(request: Request) {
           closed = true;
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
+          request.signal.removeEventListener("abort", onClientAbort);
         };
 
-        const emitPayload = (payload: string) => {
-          if (!payload || payload === "[DONE]") return;
+        const emitPayload = (payloadText: string) => {
+          if (!payloadText || payloadText === "[DONE]") return;
 
           try {
-            const parsed = JSON.parse(payload);
+            const parsed = JSON.parse(payloadText);
             const text = visibleText(parsed);
-
-            // Intentionally ignore reasoning/reasoning_content. Only final
-            // user-facing content is streamed to the UI.
             if (text) {
               sentVisibleText = true;
               const safe = JSON.stringify({
@@ -271,9 +362,26 @@ export async function POST(request: Request) {
           }
         };
 
+        const readWithTimeout = async () => {
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          try {
+            return await Promise.race([
+              reader.read(),
+              new Promise<never>((_, reject) => {
+                timer = setTimeout(
+                  () => reject(new Error("STREAM_IDLE_TIMEOUT")),
+                  60_000,
+                );
+              }),
+            ]);
+          } finally {
+            if (timer) clearTimeout(timer);
+          }
+        };
+
         try {
           while (true) {
-            const { done, value } = await reader.read();
+            const { done, value } = await readWithTimeout();
             if (done) break;
 
             buffer += decoder.decode(value, { stream: true });
@@ -295,19 +403,45 @@ export async function POST(request: Request) {
           }
 
           if (!sentVisibleText) {
-            const error = JSON.stringify({
-              error: "โมเดลตอบกลับมาแต่ไม่มีข้อความสำหรับแสดงผล",
-            });
-            controller.enqueue(encoder.encode(`data: ${error}\n\n`));
+            controller.enqueue(
+              encoder.encode(
+                streamError({
+                  code: "empty_response",
+                  message: "โมเดลตอบกลับมาแต่ไม่มีข้อความ กรุณาลองอีกครั้ง",
+                  retryable: true,
+                }),
+              ),
+            );
           }
 
           close();
         } catch (error) {
-          if (!closed) controller.error(error);
+          if (request.signal.aborted) {
+            if (!closed) controller.close();
+            request.signal.removeEventListener("abort", onClientAbort);
+            return;
+          }
+
+          const timedOut =
+            error instanceof Error && error.message === "STREAM_IDLE_TIMEOUT";
+          controller.enqueue(
+            encoder.encode(
+              streamError({
+                code: timedOut ? "timeout" : "stream_interrupted",
+                message: timedOut
+                  ? "โมเดลหยุดตอบนานเกินกำหนด กรุณาลองอีกครั้ง"
+                  : "การเชื่อมต่อกับ AI ขาดหายระหว่างตอบ กรุณาลองอีกครั้ง",
+                retryable: true,
+              }),
+            ),
+          );
+          close();
         }
       },
       cancel() {
+        upstreamController.abort();
         reader.cancel().catch(() => {});
+        request.signal.removeEventListener("abort", onClientAbort);
       },
     });
 
@@ -320,15 +454,31 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
+    clearTimeout(connectionTimer);
+    request.signal.removeEventListener("abort", onClientAbort);
+
+    if (request.signal.aborted) {
       return new Response(null, { status: 499 });
     }
 
-    return Response.json(
+    if (connectionTimedOut) {
+      return errorResponse(
+        {
+          code: "timeout",
+          message: "เชื่อมต่อโมเดลนานเกินกำหนด กรุณาลองอีกครั้ง",
+          retryable: true,
+        },
+        504,
+      );
+    }
+
+    return errorResponse(
       {
-        error: "เชื่อมต่อ Kob AI ไม่สำเร็จ",
+        code: "provider_unavailable",
+        message: "เชื่อมต่อ Kob AI ไม่สำเร็จ กรุณาลองอีกครั้งในอีกสักครู่",
+        retryable: true,
       },
-      { status: 502 },
+      502,
     );
   }
 }
