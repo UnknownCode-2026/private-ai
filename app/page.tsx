@@ -80,6 +80,76 @@ type Settings = {
   theme: "dark" | "light";
 };
 
+const CONTEXT_TOKEN_BUDGET = 24_000;
+
+function estimateContextTokens(message: Message) {
+  let characters = message.content.length;
+
+  if (message.file) {
+    characters += message.file.name.length + message.file.content.length;
+  }
+
+  // Avoid counting base64 bytes directly. Images have model-dependent token
+  // costs, so use a conservative fixed allowance for context selection.
+  const imageAllowance = message.image ? 1_200 : 0;
+
+  return Math.max(1, Math.ceil(characters / 2.5) + imageAllowance + 8);
+}
+
+function selectConversationContext(
+  messages: Message[],
+  budget = CONTEXT_TOKEN_BUDGET,
+) {
+  const eligible = messages.filter(
+    (message) => !(message.role === "assistant" && Boolean(message.error)),
+  );
+
+  if (!eligible.length) {
+    return {
+      messages: [] as Message[],
+      usedMessages: 0,
+      totalMessages: 0,
+      droppedMessages: 0,
+      estimatedTokens: 0,
+      latestTooLarge: false,
+    };
+  }
+
+  const latest = eligible[eligible.length - 1];
+  const latestCost = estimateContextTokens(latest);
+  const selected: Message[] = [];
+  let used = 0;
+
+  for (let index = eligible.length - 1; index >= 0; index -= 1) {
+    const message = eligible[index];
+    const cost = estimateContextTokens(message);
+
+    if (index === eligible.length - 1 || used + cost <= budget) {
+      selected.push(message);
+      used += cost;
+    } else {
+      break;
+    }
+  }
+
+  selected.reverse();
+
+  // Never start the context with an orphaned assistant reply.
+  while (selected.length > 1 && selected[0]?.role === "assistant") {
+    used -= estimateContextTokens(selected[0]);
+    selected.shift();
+  }
+
+  return {
+    messages: selected,
+    usedMessages: selected.length,
+    totalMessages: eligible.length,
+    droppedMessages: Math.max(0, eligible.length - selected.length),
+    estimatedTokens: Math.max(0, used),
+    latestTooLarge: latestCost > budget,
+  };
+}
+
 const HISTORY_KEY = "thaiban-ai-history-v1";
 const SETTINGS_KEY = "thaiban-ai-settings-v1";
 
@@ -392,6 +462,14 @@ export default function Home() {
     () =>
       conversations.find((item) => item.id === activeId) ?? conversations[0],
     [conversations, activeId],
+  );
+
+  const activeContext = useMemo(
+    () =>
+      activeConversation
+        ? selectConversationContext(activeConversation.messages)
+        : null,
+    [activeConversation],
   );
 
   useEffect(() => {
@@ -827,33 +905,38 @@ export default function Home() {
     };
 
     try {
+      const context = selectConversationContext(sourceMessages);
+
+      if (context.latestTooLarge) {
+        throw new ChatRequestError(
+          "ข้อความหรือไฟล์ล่าสุดยาวเกินขนาดบริบทที่ปลอดภัย กรุณาแบ่งเนื้อหาเป็นส่วนย่อยแล้วส่งใหม่",
+          "context_too_large",
+          false,
+        );
+      }
+
       const apiMessages = [
         ...(settings.systemPrompt.trim()
           ? [{ role: "system" as const, content: settings.systemPrompt.trim() }]
           : []),
-        ...sourceMessages
-          .filter(
-            (message) =>
-              !(message.role === "assistant" && Boolean(message.error)),
-          )
-          .map((message) => ({
-            role: message.role,
-            content:
-              message.role === "user" && message.image
-                ? [
-                    {
-                      type: "text" as const,
-                      text: message.content.trim() || "ช่วยวิเคราะห์รูปภาพนี้",
-                    },
-                    {
-                      type: "image_url" as const,
-                      image_url: { url: message.image.dataUrl },
-                    },
-                  ]
-                : message.role === "user" && message.file
-                  ? `${message.content.trim() || "ช่วยวิเคราะห์ไฟล์นี้"}\n\n--- ไฟล์: ${message.file.name} ---\n${message.file.content}\n--- จบไฟล์ ---`
-                  : message.content,
-          })),
+        ...context.messages.map((message) => ({
+          role: message.role,
+          content:
+            message.role === "user" && message.image
+              ? [
+                  {
+                    type: "text" as const,
+                    text: message.content.trim() || "ช่วยวิเคราะห์รูปภาพนี้",
+                  },
+                  {
+                    type: "image_url" as const,
+                    image_url: { url: message.image.dataUrl },
+                  },
+                ]
+              : message.role === "user" && message.file
+                ? `${message.content.trim() || "ช่วยวิเคราะห์ไฟล์นี้"}\n\n--- ไฟล์: ${message.file.name} ---\n${message.file.content}\n--- จบไฟล์ ---`
+                : message.content,
+        })),
       ];
 
       const response = await fetch("/api/chat", {
@@ -1452,6 +1535,13 @@ export default function Home() {
         </div>
 
         <div className="composer-zone">
+          {activeContext && activeContext.droppedMessages > 0 ? (
+            <div className="context-status" role="status">
+              <span>บทสนทนายาว · ใช้บริบทล่าสุด {activeContext.usedMessages}/{activeContext.totalMessages} ข้อความ</span>
+              <small>ประวัติทั้งหมดบนหน้าจอยังอยู่ครบ ระบบลดเฉพาะข้อมูลที่ส่งให้ AI</small>
+            </div>
+          ) : null}
+
           {notice ? (
             <button
               className="notice"
