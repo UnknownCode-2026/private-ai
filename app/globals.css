@@ -2021,3 +2021,77 @@ html[data-theme="light"] .message-content {
     width: 100%;
   }
 }
+
+
+/* Mobile Markdown cards/tables: tidy, readable, no page overflow. */
+.message-content table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.message-content th,
+.message-content td {
+  min-width: 0;
+  padding: 12px 14px;
+  vertical-align: top;
+  text-align: left;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.message-content th:first-child,
+.message-content td:first-child {
+  width: 36%;
+}
+
+.message-content th:last-child,
+.message-content td:last-child {
+  width: 64%;
+}
+
+.table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.message-content thead th {
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface-2));
+}
+
+.message-content tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+@media (max-width: 599px) {
+  .message-content table {
+    font-size: 14px;
+  }
+
+  .message-content th,
+  .message-content td {
+    padding: 10px 9px;
+    line-height: 1.55;
+  }
+
+  .message-content th:first-child,
+  .message-content td:first-child {
+    width: 38%;
+  }
+
+  .message-content th:last-child,
+  .message-content td:last-child {
+    width: 62%;
+  }
+
+  .table-scroll {
+    border-radius: 14px;
+    overflow-x: hidden;
+  }
+}
