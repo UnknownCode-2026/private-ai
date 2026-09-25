@@ -328,7 +328,9 @@ export default function Home() {
 
   useEffect(() => {
     if (followRef.current && messagesRef.current)
-      messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+      messagesRef.current.scrollTop = activeConversation?.messages.length
+        ? messagesRef.current.scrollHeight
+        : 0;
   }, [activeConversation?.messages, streaming]);
 
   useEffect(() => {

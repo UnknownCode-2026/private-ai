@@ -1141,3 +1141,10 @@ a {
     scroll-behavior: auto !important;
   }
 }
+
+.welcome > .current-model {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
