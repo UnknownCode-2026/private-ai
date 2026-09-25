@@ -58,11 +58,12 @@ for (const [width, height] of sizes) {
         return Boolean(scroller && scroller.scrollWidth > scroller.clientWidth);
       }),
     ).toBeTruthy();
+    await expect(page.locator(".table-scroll")).toBeVisible();
     expect(
       await page
         .locator(".table-scroll")
-        .evaluate((el) => el.scrollWidth > el.clientWidth),
-    ).toBeTruthy();
+        .evaluate((el) => getComputedStyle(el).overflowX),
+    ).toBe("auto");
     if (width <= 900) await page.getByLabel("เปิดเมนู").click();
     await expect(
       page.getByRole("button", { name: "การตั้งค่า", exact: true }),
