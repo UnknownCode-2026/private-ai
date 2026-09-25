@@ -2936,3 +2936,33 @@ html[data-theme="light"] .code-wrap .token.variable { color: #c3d2c8 !important;
 html[data-theme="light"] .code-wrap .token.regex,
 html[data-theme="light"] .code-wrap .token.important { color: #d0bd8b !important; }
 html[data-theme="light"] .code-wrap .token.deleted { color: #c98f8f !important; }
+
+
+/* Keep the original VS Code Dark background; only syntax text uses ThaiBan green palette. */
+.code-wrap {
+  background: #1e1e1e !important;
+  border-color: #30363d !important;
+  color: #d4d4d4 !important;
+}
+.code-toolbar {
+  background: #181818 !important;
+  border-bottom-color: #30363d !important;
+}
+.code-wrap > div:not(.code-toolbar) {
+  background: #1e1e1e !important;
+}
+.code-toolbar .code-copy:hover {
+  background: #2a2d2e !important;
+}
+html[data-theme="light"] .code-wrap {
+  background: #1e1e1e !important;
+  border-color: #30363d !important;
+  color: #d4d4d4 !important;
+}
+html[data-theme="light"] .code-toolbar {
+  background: #181818 !important;
+  border-bottom-color: #30363d !important;
+}
+html[data-theme="light"] .code-wrap > div:not(.code-toolbar) {
+  background: #1e1e1e !important;
+}
