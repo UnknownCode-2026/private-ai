@@ -3327,3 +3327,29 @@ html[data-theme="light"] .code-wrap > div:not(.code-toolbar) {
     border-radius: 11px;
   }
 }
+
+
+/* Document extraction state */
+.file-preview.processing {
+  opacity: .92;
+}
+
+.file-preview.processing > div:nth-child(2) span {
+  color: var(--muted);
+}
+
+.mini-spinner {
+  width: 22px;
+  height: 22px;
+  justify-self: center;
+  border: 2px solid color-mix(in srgb, var(--muted) 28%, transparent);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: doc-spin .8s linear infinite;
+}
+
+@keyframes doc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
