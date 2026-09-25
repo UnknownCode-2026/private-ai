@@ -728,9 +728,10 @@ export default function Home() {
       image: pendingImage ?? undefined,
     };
     const nextMessages = [...chat.messages, userMessage];
+    const titleSource = content || (pendingImage ? "รูปภาพ" : "");
     const title =
       chat.messages.length === 0
-        ? content.replace(/\s+/g, " ").slice(0, 36) || (pendingImage ? "รูปภาพ" : "แชตใหม่")
+        ? titleSource.replace(/\s+/g, " ").slice(0, 36) || "แชตใหม่"
         : chat.title;
 
     followRef.current = true;
