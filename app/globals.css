@@ -2560,3 +2560,13 @@ body,
     grid-column: 2;
   }
 }
+
+
+/* Fix duplicated top-left controls: keep menu left and settings right. */
+.topbar > .icon-button:first-child {
+  grid-area: menu !important;
+}
+
+.topbar > .icon-button.topbar-settings {
+  grid-area: settings !important;
+}
