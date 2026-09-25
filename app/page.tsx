@@ -27,6 +27,8 @@ type TextFileAttachment = {
   type: string;
   size: number;
   content: string;
+  kind?: "text" | "pdf" | "docx";
+  truncated?: boolean;
 };
 
 type ChatErrorInfo = {
@@ -430,6 +432,8 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [pendingImage, setPendingImage] = useState<ImageAttachment | null>(null);
   const [pendingFile, setPendingFile] = useState<TextFileAttachment | null>(null);
+  const [fileProcessing, setFileProcessing] = useState(false);
+  const [fileProcessingName, setFileProcessingName] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -838,6 +842,127 @@ export default function Home() {
     setSettingsOpen(false);
   }
 
+  async function prepareFile(file: File) {
+    const extension = file.name.split(".").pop()?.toLowerCase() || "";
+    const textExtensions = new Set([
+      "txt",
+      "md",
+      "json",
+      "csv",
+      "html",
+      "htm",
+      "css",
+      "js",
+      "jsx",
+      "ts",
+      "tsx",
+      "py",
+      "php",
+    ]);
+    const documentExtensions = new Set(["pdf", "docx"]);
+
+    if (!textExtensions.has(extension) && !documentExtensions.has(extension)) {
+      setNotice(
+        "รองรับ TXT, MD, JSON, CSV, HTML, CSS, JS, TS, Python, PHP, PDF และ DOCX",
+      );
+      return;
+    }
+
+    if (textExtensions.has(extension)) {
+      if (file.size > 1024 * 1024) {
+        setNotice("ไฟล์ข้อความหรือโค้ดต้องมีขนาดไม่เกิน 1 MB");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result !== "string") return;
+        setPendingFile({
+          name: file.name,
+          type: file.type || "text/plain",
+          size: file.size,
+          content: reader.result,
+          kind: "text",
+        });
+        setPendingImage(null);
+        setNotice("");
+      };
+      reader.onerror = () =>
+        setNotice("อ่านไฟล์ไม่สำเร็จ กรุณาเลือกไฟล์ใหม่แล้วลองอีกครั้ง");
+      reader.readAsText(file);
+      return;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      setNotice("ไฟล์ PDF หรือ DOCX ต้องมีขนาดไม่เกิน 8 MB");
+      return;
+    }
+
+    setFileProcessing(true);
+    setFileProcessingName(file.name);
+    setPendingImage(null);
+    setNotice("");
+
+    try {
+      const form = new FormData();
+      form.append("file", file);
+
+      const response = await fetch("/api/files/extract", {
+        method: "POST",
+        body: form,
+      });
+
+      if (response.status === 401) {
+        setNotice("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่");
+        setAuthenticated(false);
+        setHistoryReady(false);
+        return;
+      }
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message =
+          typeof data?.error === "string"
+            ? data.error
+            : typeof data?.error?.message === "string"
+              ? data.error.message
+              : "อ่านเอกสารไม่สำเร็จ กรุณาลองอีกครั้ง";
+        setNotice(message);
+        return;
+      }
+
+      if (typeof data?.text !== "string" || !data.text.trim()) {
+        setNotice("เอกสารนี้ไม่มีข้อความที่ AI สามารถอ่านได้");
+        return;
+      }
+
+      setPendingFile({
+        name: file.name,
+        type:
+          typeof data.type === "string" && data.type
+            ? data.type
+            : file.type || "application/octet-stream",
+        size: file.size,
+        content: data.text,
+        kind: extension === "pdf" ? "pdf" : "docx",
+        truncated: Boolean(data.truncated),
+      });
+
+      if (data.truncated) {
+        setNotice(
+          "เอกสารยาวมาก ระบบใช้เฉพาะส่วนแรกที่เหมาะกับขนาดบริบทของ AI",
+        );
+      } else {
+        setNotice("");
+      }
+    } catch {
+      setNotice("เชื่อมต่อระบบอ่านเอกสารไม่สำเร็จ กรุณาลองอีกครั้ง");
+    } finally {
+      setFileProcessing(false);
+      setFileProcessingName("");
+    }
+  }
+
   async function streamReply(chatId: string, sourceMessages: Message[]) {
     if (!settings.model) {
       setNotice("กรุณาเลือกโมเดลก่อนส่งข้อความ");
@@ -1084,7 +1209,13 @@ export default function Home() {
   async function sendMessage() {
     const content = input.trim();
     const chat = activeConversation;
-    if ((!content && !pendingImage && !pendingFile) || !chat || streaming) return;
+    if (
+      (!content && !pendingImage && !pendingFile) ||
+      !chat ||
+      streaming ||
+      fileProcessing
+    )
+      return;
 
     if (!settings.model) {
       setNotice(modelsError || "ยังไม่มีโมเดลที่พร้อมใช้งาน");
@@ -1558,12 +1689,33 @@ export default function Home() {
             </button>
           ) : null}
 
+          {fileProcessing ? (
+            <div className="file-preview processing" role="status">
+              <span className="file-icon"><ThaiBanIcon name="file" size={22} /></span>
+              <div>
+                <strong>{fileProcessingName || "กำลังอ่านเอกสาร"}</strong>
+                <span>กำลังสกัดข้อความจากเอกสาร...</span>
+              </div>
+              <div className="mini-spinner" aria-hidden="true" />
+            </div>
+          ) : null}
+
           {pendingFile ? (
             <div className="file-preview">
               <span className="file-icon"><ThaiBanIcon name="file" size={22} /></span>
               <div>
                 <strong>{pendingFile.name}</strong>
-                <span>{Math.max(1, Math.ceil(pendingFile.size / 1024))} KB · พร้อมส่งให้ AI อ่าน</span>
+                <span>
+                  {Math.max(1, Math.ceil(pendingFile.size / 1024))} KB
+                  {pendingFile.kind === "pdf"
+                    ? " · PDF"
+                    : pendingFile.kind === "docx"
+                      ? " · DOCX"
+                      : ""}
+                  {pendingFile.truncated
+                    ? " · ใช้ข้อความบางส่วนตามขนาดบริบท"
+                    : " · พร้อมส่งให้ AI อ่าน"}
+                </span>
               </div>
               <button
                 type="button"
@@ -1629,39 +1781,13 @@ export default function Home() {
               ref={fileInputRef}
               className="image-input"
               type="file"
-              accept=".txt,.md,.json,.csv,.html,.htm,.css,.js,.jsx,.ts,.tsx,.py,.php,text/plain,text/markdown,text/csv,application/json"
+              accept=".txt,.md,.json,.csv,.html,.htm,.css,.js,.jsx,.ts,.tsx,.py,.php,.pdf,.docx,text/plain,text/markdown,text/csv,application/json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               aria-label="แนบไฟล์"
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 event.target.value = "";
                 if (!file) return;
-                const extension = file.name.split(".").pop()?.toLowerCase() || "";
-                const allowed = new Set([
-                  "txt", "md", "json", "csv", "html", "htm", "css",
-                  "js", "jsx", "ts", "tsx", "py", "php",
-                ]);
-                if (!allowed.has(extension)) {
-                  setNotice("รองรับ TXT, MD, JSON, CSV, HTML, CSS, JS, TS, Python และ PHP");
-                  return;
-                }
-                if (file.size > 1024 * 1024) {
-                  setNotice("ไฟล์ต้องมีขนาดไม่เกิน 1 MB");
-                  return;
-                }
-                const reader = new FileReader();
-                reader.onload = () => {
-                  if (typeof reader.result !== "string") return;
-                  setPendingFile({
-                    name: file.name,
-                    type: file.type || "text/plain",
-                    size: file.size,
-                    content: reader.result,
-                  });
-                  setPendingImage(null);
-                  setNotice("");
-                };
-                reader.onerror = () => setNotice("อ่านไฟล์ไม่สำเร็จ กรุณาลองใหม่");
-                reader.readAsText(file);
+                void prepareFile(file);
               }}
             />
             <button
@@ -1669,7 +1795,7 @@ export default function Home() {
               type="button"
               aria-label="แนบไฟล์"
               title="แนบไฟล์"
-              disabled={streaming}
+              disabled={streaming || fileProcessing}
               onClick={() => fileInputRef.current?.click()}
             >
               <ThaiBanIcon name="attach" size={22} />
@@ -1702,7 +1828,11 @@ export default function Home() {
                 className="send-button"
                 type="button"
                 onClick={() => void sendMessage()}
-                disabled={(!input.trim() && !pendingImage && !pendingFile) || !settings.model}
+                disabled={
+                  fileProcessing ||
+                  ((!input.trim() && !pendingImage && !pendingFile) ||
+                    !settings.model)
+                }
                 aria-label="ส่งข้อความ"
               >
                 <ThaiBanIcon name="send" size={20} />
