@@ -448,14 +448,29 @@ export default function Home() {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "โหลดโมเดลไม่สำเร็จ");
         const items = Array.isArray(data.models) ? data.models : [];
-        setModels(items);
+        const uniqueItems = items
+          .filter(
+            (item: ModelItem, index: number, source: ModelItem[]) =>
+              item &&
+              typeof item.id === "string" &&
+              item.id.trim() &&
+              source.findIndex((candidate) => candidate.id === item.id) === index,
+          )
+          .sort((a: ModelItem, b: ModelItem) => a.id.localeCompare(b.id));
+
+        setModels(uniqueItems);
         setModelsError("");
-        if (items[0]?.id) {
-          setSettings((previous) => ({
+        setSettings((previous) => {
+          const selectedStillAvailable = uniqueItems.some(
+            (item: ModelItem) => item.id === previous.model,
+          );
+          return {
             ...previous,
-            model: previous.model || items[0].id,
-          }));
-        }
+            model: selectedStillAvailable
+              ? previous.model
+              : uniqueItems[0]?.id || "",
+          };
+        });
       })
       .catch((error) => {
         setModelsError("โหลดโมเดลไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อแล้วรีเฟรช");
@@ -1444,7 +1459,10 @@ export default function Home() {
 
         <div className="settings-scroll">
           <label className="setting-block">
-            <span>โมเดลเริ่มต้น</span>
+            <span className="setting-label-row">
+              <span>โมเดลเริ่มต้น</span>
+              <small>{models.length ? `${models.length} โมเดลพร้อมใช้` : "กำลังโหลดโมเดล"}</small>
+            </span>
             <select
               value={settings.model}
               onChange={(event) =>
