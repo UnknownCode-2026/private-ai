@@ -350,6 +350,7 @@ export default function Home() {
   const [mobile, setMobile] = useState(true);
   const sidebarRef = useRef<HTMLElement | null>(null);
   const settingsRef = useRef<HTMLElement | null>(null);
+  const modelPickerRef = useRef<HTMLElement | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const followRef = useRef(true);
 
@@ -575,11 +576,13 @@ export default function Home() {
   }, [input, authenticated]);
 
   useEffect(() => {
-    const panel = settingsOpen
-      ? settingsRef.current
-      : sidebarOpen && mobile
-        ? sidebarRef.current
-        : null;
+    const panel = modelPickerOpen
+      ? modelPickerRef.current
+      : settingsOpen
+        ? settingsRef.current
+        : sidebarOpen && mobile
+          ? sidebarRef.current
+          : null;
     if (!panel) return;
     const previous = document.activeElement as HTMLElement | null;
     const targets = () =>
@@ -591,8 +594,13 @@ export default function Home() {
     targets()[0]?.focus();
     const key = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
-        setSettingsOpen(false);
-        setSidebarOpen(false);
+        if (modelPickerOpen) {
+          setModelPickerOpen(false);
+          setSettingsOpen(true);
+        } else {
+          setSettingsOpen(false);
+          setSidebarOpen(false);
+        }
       }
       if (event.key === "Tab") {
         const elements = targets();
@@ -612,7 +620,7 @@ export default function Home() {
       document.removeEventListener("keydown", key);
       previous?.focus();
     };
-  }, [sidebarOpen, settingsOpen, mobile]);
+  }, [sidebarOpen, settingsOpen, modelPickerOpen, mobile]);
 
   async function copyText(value: string) {
     try {
@@ -1074,7 +1082,7 @@ export default function Home() {
 
       <aside
         ref={sidebarRef}
-        inert={(mobile && !sidebarOpen) || settingsOpen}
+        inert={(mobile && !sidebarOpen) || settingsOpen || modelPickerOpen}
         aria-label="เมนูและประวัติแชต"
         role={mobile ? "dialog" : undefined}
         aria-modal={mobile && sidebarOpen ? true : undefined}
@@ -1167,7 +1175,7 @@ export default function Home() {
 
       <section
         className="main-panel"
-        inert={settingsOpen || (mobile && sidebarOpen)}
+        inert={settingsOpen || modelPickerOpen || (mobile && sidebarOpen)}
       >
         <header className="topbar">
           <button
@@ -1480,9 +1488,13 @@ export default function Home() {
 
       <div
         className={`backdrop model-picker-backdrop ${modelPickerOpen ? "show" : ""}`}
-        onClick={() => setModelPickerOpen(false)}
+        onClick={() => {
+          setModelPickerOpen(false);
+          setSettingsOpen(true);
+        }}
       />
       <section
+        ref={modelPickerRef}
         inert={!modelPickerOpen}
         role="dialog"
         aria-modal="true"
@@ -1499,7 +1511,10 @@ export default function Home() {
             className="icon-button"
             type="button"
             aria-label="ปิดตัวเลือกโมเดล"
-            onClick={() => setModelPickerOpen(false)}
+            onClick={() => {
+              setModelPickerOpen(false);
+              setSettingsOpen(true);
+            }}
           >
             <ThaiBanIcon name="close" size={21} />
           </button>
@@ -1529,6 +1544,7 @@ export default function Home() {
                       model: model.id,
                     }));
                     setModelPickerOpen(false);
+                    setSettingsOpen(true);
                   }}
                 >
                   <span className="model-picker-mark" aria-hidden="true">
@@ -1584,6 +1600,7 @@ export default function Home() {
               className="model-picker-trigger"
               onClick={() => {
                 setModelSearch("");
+                setSettingsOpen(false);
                 setModelPickerOpen(true);
               }}
               disabled={!models.length}
