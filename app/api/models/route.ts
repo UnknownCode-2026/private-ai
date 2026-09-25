@@ -38,23 +38,23 @@ export async function GET() {
     }
 
     const data = JSON.parse(text);
-    const models = Array.isArray(data?.data)
-      ? data.data
-          .filter(
-            (item: unknown): item is { id: string; owned_by?: string } =>
-              Boolean(
-                item &&
-                  typeof item === "object" &&
-                  "id" in item &&
-                  typeof (item as { id?: unknown }).id === "string",
-              ),
-          )
-          .map((item) => ({
-            id: item.id,
-            ownedBy: item.owned_by || "",
-          }))
-          .sort((a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id))
-      : [];
+    const data: unknown = JSON.parse(text);
+    const source =
+      data && typeof data === "object" && "data" in data
+        ? (data as { data?: unknown }).data
+        : undefined;
+    const rawModels: unknown[] = Array.isArray(source) ? source : [];
+    const models: { id: string; ownedBy: string }[] = [];
+
+    for (const raw of rawModels) {
+      if (!raw || typeof raw !== "object" || !("id" in raw)) continue;
+      const id = (raw as { id?: unknown }).id;
+      if (typeof id !== "string") continue;
+      const owner = (raw as { owned_by?: unknown }).owned_by;
+      models.push({ id, ownedBy: typeof owner === "string" ? owner : "" });
+    }
+
+    models.sort((a, b) => a.id.localeCompare(b.id));
 
     return Response.json({ models });
   } catch (error) {
