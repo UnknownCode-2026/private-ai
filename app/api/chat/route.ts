@@ -18,6 +18,7 @@ type ApiErrorCode =
   | "timeout"
   | "provider_unavailable"
   | "invalid_request"
+  | "context_too_large"
   | "empty_response"
   | "stream_interrupted";
 
@@ -139,6 +140,69 @@ function streamError(error: ApiError) {
   return `data: ${JSON.stringify({ error })}\n\n`;
 }
 
+const CONTEXT_TOKEN_BUDGET = 24_000;
+
+function estimateChatTokens(message: ChatMessage) {
+  if (typeof message.content === "string") {
+    return Math.max(1, Math.ceil(message.content.length / 2.5) + 8);
+  }
+
+  let tokens = 8;
+  for (const part of message.content) {
+    if (part.type === "text") {
+      tokens += Math.ceil(part.text.length / 2.5);
+    } else {
+      tokens += 1_200;
+    }
+  }
+  return Math.max(1, tokens);
+}
+
+function manageContext(messages: ChatMessage[]) {
+  const systemMessages = messages.filter((message) => message.role === "system");
+  const conversation = messages.filter((message) => message.role !== "system");
+  const systemTokens = systemMessages.reduce(
+    (sum, message) => sum + estimateChatTokens(message),
+    0,
+  );
+  const available = Math.max(4_000, CONTEXT_TOKEN_BUDGET - systemTokens);
+
+  if (!conversation.length) {
+    return {
+      messages: systemMessages,
+      latestTooLarge: false,
+      droppedMessages: 0,
+    };
+  }
+
+  const latestCost = estimateChatTokens(conversation[conversation.length - 1]);
+  const selected: ChatMessage[] = [];
+  let used = 0;
+
+  for (let index = conversation.length - 1; index >= 0; index -= 1) {
+    const message = conversation[index];
+    const cost = estimateChatTokens(message);
+
+    if (index === conversation.length - 1 || used + cost <= available) {
+      selected.push(message);
+      used += cost;
+    } else {
+      break;
+    }
+  }
+
+  selected.reverse();
+  while (selected.length > 1 && selected[0]?.role === "assistant") {
+    selected.shift();
+  }
+
+  return {
+    messages: [...systemMessages, ...selected],
+    latestTooLarge: latestCost > available,
+    droppedMessages: Math.max(0, conversation.length - selected.length),
+  };
+}
+
 export async function POST(request: Request) {
   if (!(await isAuthorized())) {
     return Response.json({ error: "ไม่ได้รับอนุญาต" }, { status: 401 });
@@ -191,17 +255,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const messages = body.messages
-    .filter((message): message is ChatMessage =>
+  const validMessages = body.messages.filter(
+    (message): message is ChatMessage =>
       Boolean(
         message &&
         ["system", "user", "assistant"].includes(message.role) &&
         validContent(message.content),
       ),
-    )
-    .slice(-80);
+  );
 
-  if (!messages.length) {
+  if (!validMessages.length) {
     return errorResponse(
       {
         code: "invalid_request",
@@ -211,6 +274,22 @@ export async function POST(request: Request) {
       400,
     );
   }
+
+  const managedContext = manageContext(validMessages);
+
+  if (managedContext.latestTooLarge) {
+    return errorResponse(
+      {
+        code: "context_too_large",
+        message:
+          "ข้อความหรือไฟล์ล่าสุดยาวเกินขนาดบริบทที่ปลอดภัย กรุณาแบ่งเนื้อหาเป็นส่วนย่อยแล้วส่งใหม่",
+        retryable: false,
+      },
+      413,
+    );
+  }
+
+  const messages = managedContext.messages;
 
   const temperature = Math.min(2, Math.max(0, Number(body.temperature ?? 0.7)));
   const maxTokens = Math.min(
