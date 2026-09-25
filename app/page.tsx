@@ -343,6 +343,8 @@ export default function Home() {
   const [streaming, setStreaming] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [modelSearch, setModelSearch] = useState("");
   const [notice, setNotice] = useState("");
   const [storageError, setStorageError] = useState(false);
   const [mobile, setMobile] = useState(true);
@@ -356,6 +358,14 @@ export default function Home() {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const filteredModels = useMemo(() => {
+    const query = modelSearch.trim().toLocaleLowerCase();
+    if (!query) return models;
+    return models.filter((model) =>
+      model.id.toLocaleLowerCase().includes(query),
+    );
+  }, [models, modelSearch]);
 
   const activeConversation = useMemo(
     () =>
@@ -1469,6 +1479,73 @@ export default function Home() {
       </section>
 
       <div
+        className={`backdrop model-picker-backdrop ${modelPickerOpen ? "show" : ""}`}
+        onClick={() => setModelPickerOpen(false)}
+      />
+      <section
+        inert={!modelPickerOpen}
+        role="dialog"
+        aria-modal="true"
+        aria-label="เลือกโมเดล AI"
+        className={`model-picker-sheet ${modelPickerOpen ? "open" : ""}`}
+      >
+        <div className="sheet-handle" />
+        <div className="model-picker-head">
+          <div>
+            <h2>เลือกโมเดล</h2>
+            <p>{models.length} โมเดลพร้อมใช้</p>
+          </div>
+          <button
+            className="icon-button"
+            type="button"
+            aria-label="ปิดตัวเลือกโมเดล"
+            onClick={() => setModelPickerOpen(false)}
+          >
+            <ThaiBanIcon name="close" size={21} />
+          </button>
+        </div>
+        <div className="model-search-wrap">
+          <input
+            type="search"
+            value={modelSearch}
+            onChange={(event) => setModelSearch(event.target.value)}
+            placeholder="ค้นหาโมเดล..."
+            aria-label="ค้นหาโมเดล"
+            autoComplete="off"
+          />
+        </div>
+        <div className="model-picker-list">
+          {filteredModels.length ? (
+            filteredModels.map((model) => {
+              const selected = model.id === settings.model;
+              return (
+                <button
+                  key={model.id}
+                  type="button"
+                  className={`model-picker-item ${selected ? "selected" : ""}`}
+                  onClick={() => {
+                    setSettings((previous) => ({
+                      ...previous,
+                      model: model.id,
+                    }));
+                    setModelPickerOpen(false);
+                  }}
+                >
+                  <span className="model-picker-mark" aria-hidden="true">
+                    {selected ? "✓" : ""}
+                  </span>
+                  <span className="model-picker-name">{model.id}</span>
+                  {selected ? <small>กำลังใช้</small> : null}
+                </button>
+              );
+            })
+          ) : (
+            <div className="model-picker-empty">ไม่พบโมเดลที่ค้นหา</div>
+          )}
+        </div>
+      </section>
+
+      <div
         className={`backdrop settings-backdrop ${settingsOpen ? "show" : ""}`}
         onClick={() => setSettingsOpen(false)}
       />
@@ -1497,28 +1574,28 @@ export default function Home() {
         </div>
 
         <div className="settings-scroll">
-          <label className="setting-block">
+          <div className="setting-block">
             <span className="setting-label-row">
               <span>โมเดลเริ่มต้น</span>
               <small>{models.length ? `${models.length} โมเดลพร้อมใช้` : "กำลังโหลดโมเดล"}</small>
             </span>
-            <select
-              value={settings.model}
-              onChange={(event) =>
-                setSettings((previous) => ({
-                  ...previous,
-                  model: event.target.value,
-                }))
-              }
+            <button
+              type="button"
+              className="model-picker-trigger"
+              onClick={() => {
+                setModelSearch("");
+                setModelPickerOpen(true);
+              }}
+              disabled={!models.length}
+              aria-haspopup="dialog"
             >
-              <option value="">เลือกโมเดล</option>
-              {models.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.id}
-                </option>
-              ))}
-            </select>
-          </label>
+              <span>
+                <small>โมเดลที่กำลังใช้</small>
+                <strong>{settings.model || "เลือกโมเดล"}</strong>
+              </span>
+              <span className="model-picker-chevron" aria-hidden="true">⌄</span>
+            </button>
+          </div>
 
           <label className="setting-block">
             <span>คำสั่งหลักของ AI</span>
