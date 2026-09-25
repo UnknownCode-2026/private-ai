@@ -516,19 +516,60 @@ export async function POST(request: Request) {
       ...(isGptOss ? { reasoning_effort: reasoningEffort } : {}),
     };
 
-    const upstream = await fetch(`${baseUrl()}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        Accept: "text/event-stream, application/json",
-      },
-      body: JSON.stringify({
-        ...payload,
-        stream: true,
-      }),
-      signal: upstreamController.signal,
-    });
+    const requestUpstream = (candidatePayload: Record<string, unknown>) =>
+      fetch(`${baseUrl()}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          Accept: "text/event-stream, application/json",
+        },
+        body: JSON.stringify({
+          ...candidatePayload,
+          stream: true,
+        }),
+        signal: upstreamController.signal,
+      });
+
+    let upstream = await requestUpstream(payload);
+
+    if (
+      !upstream.ok &&
+      [400, 422].includes(upstream.status) &&
+      "reasoning_effort" in payload
+    ) {
+      const raw = await upstream.text().catch(() => "");
+      const parameterRejected =
+        /reasoning_effort|unknown\s+(field|parameter)|unsupported\s+(field|parameter)|extra\s+fields?\s+not\s+permitted/i.test(
+          raw,
+        );
+
+      if (parameterRejected) {
+        const {
+          reasoning_effort: _ignoredReasoningEffort,
+          ...fallbackPayload
+        } = payload;
+        upstream = await requestUpstream(fallbackPayload);
+      } else {
+        clearTimeout(connectionTimer);
+        request.signal.removeEventListener("abort", onClientAbort);
+
+        let detail = "";
+        try {
+          const parsed = JSON.parse(raw);
+          const value =
+            parsed?.error?.message ?? parsed?.error ?? parsed?.message ?? "";
+          detail = typeof value === "string" ? value : "";
+        } catch {
+          detail = "";
+        }
+
+        return errorResponse(
+          classifyUpstreamError(upstream.status || 502, detail),
+          upstream.status || 502,
+        );
+      }
+    }
 
     clearTimeout(connectionTimer);
 

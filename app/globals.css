@@ -3435,3 +3435,50 @@ html[data-theme="light"] .code-wrap > div:not(.code-toolbar) {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* V1.2 workspace completion */
+.file-preview-stack,
+.chat-file-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.file-preview-stack {
+  max-height: min(240px, 28dvh);
+  overflow-y: auto;
+  margin-bottom: 8px;
+  padding-right: 2px;
+}
+
+.chat-file-stack {
+  margin-bottom: 10px;
+}
+
+.memory-editor {
+  width: 100%;
+  min-height: 116px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 12px;
+  line-height: 1.7;
+}
+
+.history-search + .history-label {
+  padding-top: 4px;
+}
+
+.chat-date {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.info-card strong::after {
+  content: " · V1.2";
+  color: var(--muted);
+  font-weight: 500;
+}

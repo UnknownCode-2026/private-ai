@@ -13,6 +13,7 @@ import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import remarkGfm from "remark-gfm";
+import { loadChatHistory, saveChatHistory } from "@/lib/client-storage";
 
 type Role = "user" | "assistant";
 
@@ -57,6 +58,7 @@ type Message = {
   createdAt: number;
   image?: ImageAttachment;
   file?: TextFileAttachment;
+  files?: TextFileAttachment[];
   error?: ChatErrorInfo;
 };
 
@@ -68,6 +70,11 @@ type Conversation = {
   messages: Message[];
   memory?: string;
 };
+
+function messageFiles(message: Message) {
+  if (Array.isArray(message.files) && message.files.length) return message.files;
+  return message.file ? [message.file] : [];
+}
 
 type ModelItem = {
   id: string;
@@ -95,8 +102,8 @@ type ClientContextTurn = {
 function estimateContextTokens(message: Message) {
   let characters = message.content.length;
 
-  if (message.file) {
-    characters += message.file.name.length + message.file.content.length;
+  for (const file of messageFiles(message)) {
+    characters += file.name.length + file.content.length;
   }
 
   // Avoid counting base64 bytes directly. Images have model-dependent token
@@ -118,7 +125,105 @@ function contextSearchTerms(value: string) {
 }
 
 function contextMessageText(message: Message) {
-  return [message.content, message.file?.content || ""].filter(Boolean).join("\n");
+  return [
+    message.content,
+    ...messageFiles(message).map((file) => file.content),
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function selectRelevantDocumentText(
+  file: TextFileAttachment,
+  query: string,
+  maxChars = 7000,
+) {
+  const content = file.content.trim();
+  if (content.length <= maxChars) return content;
+
+  const chunkSize = 3200;
+  const overlap = 320;
+  const chunks: Array<{ index: number; text: string; score: number }> = [];
+  const queryTerms = contextSearchTerms(query);
+  const overviewRequest =
+    /(สรุป|ภาพรวม|ทั้งหมด|ทั้งไฟล์|summary|summarize|overview)/i.test(query);
+
+  for (
+    let start = 0, index = 0;
+    start < content.length;
+    start += chunkSize - overlap, index += 1
+  ) {
+    const text = content.slice(start, start + chunkSize).trim();
+    if (!text) continue;
+
+    const terms = contextSearchTerms(text);
+    let overlapScore = 0;
+    for (const term of queryTerms) {
+      if (terms.has(term)) overlapScore += 1;
+    }
+
+    chunks.push({
+      index,
+      text,
+      score: overlapScore * 12 + (index === 0 ? 0.75 : 0),
+    });
+  }
+
+  let selected:
+    | Array<{ index: number; text: string; score: number }>
+    | undefined;
+
+  if (overviewRequest && chunks.length > 2) {
+    const middle = chunks[Math.floor(chunks.length / 2)];
+    selected = [chunks[0], middle, chunks[chunks.length - 1]];
+  } else {
+    selected = [...chunks].sort(
+      (a, b) => b.score - a.score || a.index - b.index,
+    );
+  }
+
+  const picked: Array<{ index: number; text: string; score: number }> = [];
+  let used = 0;
+  for (const chunk of selected) {
+    if (picked.some((item) => item.index === chunk.index)) continue;
+    const remaining = maxChars - used;
+    if (remaining <= 400) break;
+    const text =
+      chunk.text.length > remaining
+        ? chunk.text.slice(0, remaining).trimEnd()
+        : chunk.text;
+    if (!text) continue;
+    picked.push({ ...chunk, text });
+    used += text.length;
+  }
+
+  picked.sort((a, b) => a.index - b.index);
+  return picked
+    .map(
+      (chunk) =>
+        `[ส่วนเอกสาร ${chunk.index + 1}]\n${chunk.text}`,
+    )
+    .join("\n\n");
+}
+
+function documentMessageContent(message: Message) {
+  const files = messageFiles(message);
+  if (!files.length) return message.content;
+
+  const prompt =
+    message.content.trim() ||
+    (files.length > 1 ? "ช่วยวิเคราะห์ไฟล์เหล่านี้" : "ช่วยวิเคราะห์ไฟล์นี้");
+
+  return [
+    prompt,
+    ...files.map(
+      (file) =>
+        `--- ไฟล์: ${file.name} ---\n${selectRelevantDocumentText(
+          file,
+          prompt,
+        )}\n--- จบไฟล์: ${file.name} ---`,
+    ),
+  ].join("\n\n");
 }
 
 function buildClientContextTurns(messages: Message[]) {
@@ -249,7 +354,8 @@ function selectConversationContext(
 
 const HISTORY_KEY = "thaiban-ai-history-v1";
 const SETTINGS_KEY = "thaiban-ai-settings-v1";
-const V12_BACKUP_VERSION = 1;
+const V12_BACKUP_VERSION = 2;
+const MAX_PENDING_FILES = 5;
 
 type ThaiBanBackup = {
   app: "ThaiBan AI";
@@ -302,6 +408,43 @@ function blankConversation(): Conversation {
     updatedAt: now,
     messages: [],
   };
+}
+
+function conversationSearchMatch(chat: Conversation, query: string) {
+  const normalized = query.trim().toLocaleLowerCase();
+  if (!normalized) return null;
+
+  for (const message of chat.messages) {
+    const text = [
+      message.content,
+      ...messageFiles(message).flatMap((file) => [file.name, file.content]),
+    ].join("\n");
+    const lower = text.toLocaleLowerCase();
+    const index = lower.indexOf(normalized);
+    if (index < 0) continue;
+
+    const start = Math.max(0, index - 38);
+    const end = Math.min(text.length, index + normalized.length + 72);
+    const snippet = text
+      .slice(start, end)
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return {
+      messageId: message.id,
+      snippet:
+        (start > 0 ? "…" : "") +
+        snippet +
+        (end < text.length ? "…" : ""),
+    };
+  }
+
+  const memory = chat.memory || "";
+  if (memory.toLocaleLowerCase().includes(normalized)) {
+    return { messageId: undefined, snippet: "พบในความจำของแชต" };
+  }
+
+  return null;
 }
 
 function textFromNode(node: ReactNode): string {
@@ -541,7 +684,7 @@ export default function Home() {
   const [modelsError, setModelsError] = useState("");
   const [input, setInput] = useState("");
   const [pendingImage, setPendingImage] = useState<ImageAttachment | null>(null);
-  const [pendingFile, setPendingFile] = useState<TextFileAttachment | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<TextFileAttachment[]>([]);
   const [fileProcessing, setFileProcessing] = useState(false);
   const [fileProcessingName, setFileProcessingName] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -583,8 +726,7 @@ export default function Home() {
         chat.memory || "",
         ...chat.messages.flatMap((message) => [
           message.content,
-          message.file?.name || "",
-          message.file?.content || "",
+          ...messageFiles(message).flatMap((file) => [file.name, file.content]),
         ]),
       ]
         .join("\n")
@@ -623,90 +765,125 @@ export default function Home() {
   useEffect(() => {
     if (!authenticated) return;
 
-    try {
-      migrateStorage();
-      const rawHistory = localStorage.getItem(HISTORY_KEY);
-      const storedHistory = rawHistory
-        ? (JSON.parse(rawHistory) as Conversation[])
-        : [];
-      if (
-        !Array.isArray(storedHistory) ||
-        storedHistory.some(
-          (chat) =>
-            !chat ||
-            typeof chat.id !== "string" ||
-            typeof chat.title !== "string" ||
-            !Array.isArray(chat.messages) ||
-            chat.messages.some(
-              (message: Message) =>
-                !message ||
-                typeof message.content !== "string" ||
-                !["user", "assistant"].includes(message.role),
-            ),
-        )
-      )
-        throw new Error("history");
-      const initial =
-        Array.isArray(storedHistory) && storedHistory.length
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        migrateStorage();
+
+        let storedHistory = await loadChatHistory<Conversation[]>();
+
+        if (!storedHistory) {
+          const rawHistory = localStorage.getItem(HISTORY_KEY);
+          storedHistory = rawHistory
+            ? (JSON.parse(rawHistory) as Conversation[])
+            : [];
+
+          if (Array.isArray(storedHistory) && storedHistory.length) {
+            await saveChatHistory(storedHistory);
+          }
+        }
+
+        if (
+          !Array.isArray(storedHistory) ||
+          storedHistory.some(
+            (chat) =>
+              !chat ||
+              typeof chat.id !== "string" ||
+              typeof chat.title !== "string" ||
+              !Array.isArray(chat.messages) ||
+              chat.messages.some(
+                (message: Message) =>
+                  !message ||
+                  typeof message.content !== "string" ||
+                  !["user", "assistant"].includes(message.role),
+              ),
+          )
+        ) {
+          throw new Error("history");
+        }
+
+        const initial = storedHistory.length
           ? storedHistory
           : [blankConversation()];
-      setConversations(initial);
-      setActiveId(initial[0].id);
 
-      const rawSettings = localStorage.getItem(SETTINGS_KEY);
-      if (rawSettings) {
-        const stored = JSON.parse(rawSettings);
-        if (
-          !stored ||
-          typeof stored !== "object" ||
-          (stored.temperature !== undefined &&
-            (typeof stored.temperature !== "number" ||
-              !Number.isFinite(stored.temperature))) ||
-          (stored.systemPrompt !== undefined &&
-            typeof stored.systemPrompt !== "string")
-        )
-          throw new Error("settings");
-        if (
-          typeof stored.systemPrompt === "string" &&
-          stored.systemPrompt ===
-            "คุณคือ Private AI ผู้ช่วยส่วนตัวของผู้ใช้ ตอบเป็นภาษาไทยเป็นหลัก ให้คำตอบที่ชัดเจน ถูกต้อง กระชับเมื่อทำได้ และแสดงโค้ดใน code block เมื่อมีโค้ด"
-        )
-          stored.systemPrompt = DEFAULT_SETTINGS.systemPrompt;
-        setSettings({ ...DEFAULT_SETTINGS, ...stored });
+        if (!cancelled) {
+          setConversations(initial);
+          setActiveId(initial[0].id);
+        }
+
+        const rawSettings = localStorage.getItem(SETTINGS_KEY);
+        if (rawSettings) {
+          const stored = JSON.parse(rawSettings);
+          if (
+            !stored ||
+            typeof stored !== "object" ||
+            (stored.temperature !== undefined &&
+              (typeof stored.temperature !== "number" ||
+                !Number.isFinite(stored.temperature))) ||
+            (stored.systemPrompt !== undefined &&
+              typeof stored.systemPrompt !== "string")
+          ) {
+            throw new Error("settings");
+          }
+
+          if (
+            typeof stored.systemPrompt === "string" &&
+            stored.systemPrompt ===
+              "คุณคือ Private AI ผู้ช่วยส่วนตัวของผู้ใช้ ตอบเป็นภาษาไทยเป็นหลัก ให้คำตอบที่ชัดเจน ถูกต้อง กระชับเมื่อทำได้ และแสดงโค้ดใน code block เมื่อมีโค้ด"
+          ) {
+            stored.systemPrompt = DEFAULT_SETTINGS.systemPrompt;
+          }
+
+          if (!cancelled) {
+            setSettings({ ...DEFAULT_SETTINGS, ...stored });
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setStorageError(true);
+          setNotice(
+            "อ่านข้อมูลเดิมไม่ได้ จึงพักการบันทึกเพื่อรักษาประวัติเดิม กรุณาตรวจพื้นที่จัดเก็บแล้วรีเฟรช",
+          );
+          const initial = [blankConversation()];
+          setConversations(initial);
+          setActiveId(initial[0].id);
+        }
+      } finally {
+        if (!cancelled) {
+          setHistoryReady(true);
+
+          if ("serviceWorker" in navigator) {
+            navigator.serviceWorker
+              .register("/sw.js")
+              .catch(() => undefined);
+          }
+        }
       }
-    } catch {
-      setStorageError(true);
-      setNotice(
-        "อ่านข้อมูลเดิมไม่ได้ จึงพักการบันทึกเพื่อรักษาประวัติเดิม กรุณาตรวจพื้นที่จัดเก็บแล้วรีเฟรช",
-      );
-      const initial = [blankConversation()];
-      setConversations(initial);
-      setActiveId(initial[0].id);
-    }
+    };
 
-    setHistoryReady(true);
+    void load();
 
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
-    }
+    return () => {
+      cancelled = true;
+    };
   }, [authenticated]);
 
   useEffect(() => {
-    if (!authenticated || !historyReady) return;
-    if (storageError) return;
+    if (!authenticated || !historyReady || storageError) return;
+
     const timer = setTimeout(
       () => {
-        try {
-          localStorage.setItem(HISTORY_KEY, JSON.stringify(conversations));
-        } catch {
+        void saveChatHistory(conversations).catch(() => {
           setStorageError(true);
           setNotice(
             "บันทึกประวัติไม่ได้ กรุณาตรวจพื้นที่จัดเก็บก่อนปิดหน้านี้",
           );
-        }
+        });
       },
-      streaming ? 300 : 0,
+      streaming ? 350 : 80,
     );
+
     return () => clearTimeout(timer);
   }, [conversations, authenticated, historyReady, storageError, streaming]);
 
@@ -867,11 +1044,7 @@ export default function Home() {
   useEffect(() => {
     if (!authenticated || !historyReady || storageError) return;
     const save = () => {
-      try {
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(conversations));
-      } catch {
-        /* Existing data remains untouched. */
-      }
+      void saveChatHistory(conversations).catch(() => undefined);
     };
     window.addEventListener("pagehide", save);
     return () => window.removeEventListener("pagehide", save);
@@ -894,14 +1067,24 @@ export default function Home() {
     setActiveId(chat.id);
     setSidebarOpen(false);
     setInput("");
+    setPendingFiles([]);
+    setPendingImage(null);
     setTimeout(() => inputRef.current?.focus(), 50);
   }
 
-  function selectChat(id: string) {
+  function selectChat(id: string, messageId?: string) {
     if (streaming) return;
-    followRef.current = true;
+    followRef.current = !messageId;
     setActiveId(id);
     setSidebarOpen(false);
+
+    if (messageId) {
+      setTimeout(() => {
+        document
+          .querySelector(`[data-message-id="${messageId}"]`)
+          ?.scrollIntoView({ block: "center", behavior: "smooth" });
+      }, 80);
+    }
   }
 
   function renameChat(chat: Conversation) {
@@ -1079,28 +1262,45 @@ export default function Home() {
       return;
     }
 
+    setPendingImage(null);
+
+    const appendFile = (attachment: TextFileAttachment) => {
+      setPendingFiles((previous) => {
+        if (
+          previous.some(
+            (item) =>
+              item.name === attachment.name &&
+              item.size === attachment.size &&
+              item.content === attachment.content,
+          )
+        ) {
+          return previous;
+        }
+
+        if (previous.length >= MAX_PENDING_FILES) return previous;
+        return [...previous, attachment];
+      });
+    };
+
     if (textExtensions.has(extension)) {
       if (file.size > 1024 * 1024) {
         setNotice("ไฟล์ข้อความหรือโค้ดต้องมีขนาดไม่เกิน 1 MB");
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result !== "string") return;
-        setPendingFile({
+      try {
+        const content = await file.text();
+        appendFile({
           name: file.name,
           type: file.type || "text/plain",
           size: file.size,
-          content: reader.result,
+          content,
           kind: "text",
         });
-        setPendingImage(null);
         setNotice("");
-      };
-      reader.onerror = () =>
+      } catch {
         setNotice("อ่านไฟล์ไม่สำเร็จ กรุณาเลือกไฟล์ใหม่แล้วลองอีกครั้ง");
-      reader.readAsText(file);
+      }
       return;
     }
 
@@ -1111,8 +1311,6 @@ export default function Home() {
 
     setFileProcessing(true);
     setFileProcessingName(file.name);
-    setPendingImage(null);
-    setNotice("");
 
     try {
       const form = new FormData();
@@ -1147,7 +1345,7 @@ export default function Home() {
         return;
       }
 
-      setPendingFile({
+      appendFile({
         name: file.name,
         type:
           typeof data.type === "string" && data.type
@@ -1161,7 +1359,7 @@ export default function Home() {
 
       if (data.truncated) {
         setNotice(
-          "เอกสารยาวมาก ระบบใช้เฉพาะส่วนแรกที่เหมาะกับขนาดบริบทของ AI",
+          "เอกสารยาวมาก ระบบจะเลือกส่วนที่เกี่ยวข้องกับคำถามให้อัตโนมัติ",
         );
       } else {
         setNotice("");
@@ -1282,8 +1480,8 @@ export default function Home() {
                     image_url: { url: message.image.dataUrl },
                   },
                 ]
-              : message.role === "user" && message.file
-                ? `${message.content.trim() || "ช่วยวิเคราะห์ไฟล์นี้"}\n\n--- ไฟล์: ${message.file.name} ---\n${message.file.content}\n--- จบไฟล์ ---`
+              : message.role === "user" && messageFiles(message).length
+                ? documentMessageContent(message)
                 : message.content,
         })),
       ];
@@ -1434,7 +1632,7 @@ export default function Home() {
     const content = input.trim();
     const chat = activeConversation;
     if (
-      (!content && !pendingImage && !pendingFile) ||
+      (!content && !pendingImage && !pendingFiles.length) ||
       !chat ||
       streaming ||
       fileProcessing
@@ -1451,14 +1649,23 @@ export default function Home() {
       role: "user",
       content:
         content ||
-        (pendingFile ? "ช่วยวิเคราะห์ไฟล์นี้" : "ช่วยวิเคราะห์รูปภาพนี้"),
+        (pendingFiles.length
+          ? pendingFiles.length > 1
+            ? "ช่วยวิเคราะห์ไฟล์เหล่านี้"
+            : "ช่วยวิเคราะห์ไฟล์นี้"
+          : "ช่วยวิเคราะห์รูปภาพนี้"),
       createdAt: Date.now(),
       image: pendingImage ?? undefined,
-      file: pendingFile ?? undefined,
+      files: pendingFiles.length ? pendingFiles : undefined,
     };
     const nextMessages = [...chat.messages, userMessage];
     const titleSource =
-      content || (pendingFile ? pendingFile.name : pendingImage ? "รูปภาพ" : "");
+      content ||
+      (pendingFiles.length
+        ? pendingFiles[0].name
+        : pendingImage
+          ? "รูปภาพ"
+          : "");
     const title =
       chat.messages.length === 0
         ? titleSource.replace(/\s+/g, " ").slice(0, 36) || "แชตใหม่"
@@ -1467,7 +1674,7 @@ export default function Home() {
     followRef.current = true;
     setInput("");
     setPendingImage(null);
-    setPendingFile(null);
+    setPendingFiles([]);
     patchConversation(chat.id, (item) => ({
       ...item,
       title,
@@ -1699,14 +1906,22 @@ export default function Home() {
                 disabled={streaming}
                 className="chat-select"
                 type="button"
-                onClick={() => selectChat(chat.id)}
+                onClick={() =>
+                  selectChat(
+                    chat.id,
+                    conversationSearchMatch(chat, historySearch)?.messageId,
+                  )
+                }
               >
                 <span className="chat-title">{chat.title}</span>
                 <span className="chat-date">
-                  {new Date(chat.updatedAt).toLocaleDateString("th-TH", {
-                    day: "numeric",
-                    month: "short",
-                  })}
+                  {historySearch
+                    ? conversationSearchMatch(chat, historySearch)?.snippet ||
+                      "พบในชื่อแชต"
+                    : new Date(chat.updatedAt).toLocaleDateString("th-TH", {
+                        day: "numeric",
+                        month: "short",
+                      })}
                 </span>
               </button>
               <button
@@ -1829,6 +2044,7 @@ export default function Home() {
             activeConversation.messages.map((message, messageIndex) => (
               <article
                 key={message.id}
+                data-message-id={message.id}
                 className={`message-row ${message.role}`}
               >
                 <div className="message-avatar">
@@ -1857,13 +2073,22 @@ export default function Home() {
                         alt={message.image.name || "รูปภาพที่แนบ"}
                       />
                     ) : null}
-                    {message.role === "user" && message.file ? (
-                      <div className="chat-file">
-                        <span className="file-icon"><ThaiBanIcon name="file" size={22} /></span>
-                        <span>
-                          <strong>{message.file.name}</strong>
-                          <small>{Math.max(1, Math.ceil(message.file.size / 1024))} KB</small>
-                        </span>
+                    {message.role === "user" && messageFiles(message).length ? (
+                      <div className="chat-file-stack">
+                        {messageFiles(message).map((file, fileIndex) => (
+                          <div
+                            className="chat-file"
+                            key={`${file.name}-${file.size}-${fileIndex}`}
+                          >
+                            <span className="file-icon"><ThaiBanIcon name="file" size={22} /></span>
+                            <span>
+                              <strong>{file.name}</strong>
+                              <small>
+                                {Math.max(1, Math.ceil(file.size / 1024))} KB
+                              </small>
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     ) : null}
                     {message.role === "assistant" ? (
@@ -1951,30 +2176,41 @@ export default function Home() {
             </div>
           ) : null}
 
-          {pendingFile ? (
-            <div className="file-preview">
-              <span className="file-icon"><ThaiBanIcon name="file" size={22} /></span>
-              <div>
-                <strong>{pendingFile.name}</strong>
-                <span>
-                  {Math.max(1, Math.ceil(pendingFile.size / 1024))} KB
-                  {pendingFile.kind === "pdf"
-                    ? " · PDF"
-                    : pendingFile.kind === "docx"
-                      ? " · DOCX"
-                      : ""}
-                  {pendingFile.truncated
-                    ? " · ใช้ข้อความบางส่วนตามขนาดบริบท"
-                    : " · พร้อมส่งให้ AI อ่าน"}
-                </span>
-              </div>
-              <button
-                type="button"
-                aria-label="ลบไฟล์"
-                onClick={() => setPendingFile(null)}
-              >
-                <ThaiBanIcon name="close" size={18} />
-              </button>
+          {pendingFiles.length ? (
+            <div className="file-preview-stack">
+              {pendingFiles.map((file, index) => (
+                <div
+                  className="file-preview"
+                  key={`${file.name}-${file.size}-${index}`}
+                >
+                  <span className="file-icon"><ThaiBanIcon name="file" size={22} /></span>
+                  <div>
+                    <strong>{file.name}</strong>
+                    <span>
+                      {Math.max(1, Math.ceil(file.size / 1024))} KB
+                      {file.kind === "pdf"
+                        ? " · PDF"
+                        : file.kind === "docx"
+                          ? " · DOCX"
+                          : ""}
+                      {file.truncated
+                        ? " · ระบบจะเลือกส่วนที่เกี่ยวข้อง"
+                        : " · พร้อมส่งให้ AI อ่าน"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label={`ลบไฟล์ ${file.name}`}
+                    onClick={() =>
+                      setPendingFiles((previous) =>
+                        previous.filter((_, fileIndex) => fileIndex !== index),
+                      )
+                    }
+                  >
+                    <ThaiBanIcon name="close" size={18} />
+                  </button>
+                </div>
+              ))}
             </div>
           ) : null}
 
@@ -2022,6 +2258,7 @@ export default function Home() {
                     name: file.name,
                     type: file.type,
                   });
+                  setPendingFiles([]);
                   setNotice("");
                 };
                 reader.onerror = () => setNotice("อ่านรูปภาพไม่สำเร็จ กรุณาลองใหม่");
@@ -2034,11 +2271,30 @@ export default function Home() {
               type="file"
               accept=".txt,.md,.json,.csv,.html,.htm,.css,.js,.jsx,.ts,.tsx,.py,.php,.pdf,.docx,text/plain,text/markdown,text/csv,application/json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               aria-label="แนบไฟล์"
+              multiple
               onChange={(event) => {
-                const file = event.target.files?.[0];
+                const selected = Array.from(event.target.files || []);
                 event.target.value = "";
-                if (!file) return;
-                void prepareFile(file);
+                if (!selected.length) return;
+
+                const capacity = Math.max(
+                  0,
+                  MAX_PENDING_FILES - pendingFiles.length,
+                );
+                const accepted = selected.slice(0, capacity);
+
+                if (selected.length > capacity) {
+                  setNotice(
+                    `แนบได้สูงสุด ${MAX_PENDING_FILES} ไฟล์ต่อข้อความ`,
+                  );
+                }
+
+                setPendingImage(null);
+                void (async () => {
+                  for (const file of accepted) {
+                    await prepareFile(file);
+                  }
+                })();
               }}
             />
             <button
@@ -2081,7 +2337,7 @@ export default function Home() {
                 onClick={() => void sendMessage()}
                 disabled={
                   fileProcessing ||
-                  ((!input.trim() && !pendingImage && !pendingFile) ||
+                  ((!input.trim() && !pendingImage && !pendingFiles.length) ||
                     !settings.model)
                 }
                 aria-label="ส่งข้อความ"
@@ -2236,16 +2492,39 @@ export default function Home() {
             <p className="setting-help">
               เก็บข้อมูลสำคัญของบทสนทนานี้ไว้เป็นบริบท แม้แชตจะยาวจนข้อความเก่าถูกลดออก
             </p>
-            <button
-              type="button"
-              className="secondary-setting-button"
+            <textarea
+              className="memory-editor"
+              rows={4}
+              maxLength={6000}
+              value={activeConversation.memory || ""}
+              placeholder="เช่น ชื่อโปรเจกต์ เทคโนโลยีที่ใช้ ข้อกำหนดสำคัญ หรือสิ่งที่ห้ามเปลี่ยน"
               disabled={streaming}
-              onClick={editConversationMemory}
-            >
-              {activeConversation.memory?.trim()
-                ? "ดู / แก้ไขความจำ"
-                : "เพิ่มความจำของแชต"}
-            </button>
+              onChange={(event) => {
+                const memory = event.target.value.slice(0, 6000);
+                patchConversation(activeConversation.id, (item) => ({
+                  ...item,
+                  memory,
+                  updatedAt: Date.now(),
+                }));
+              }}
+            />
+            {activeConversation.memory?.trim() ? (
+              <button
+                type="button"
+                className="secondary-setting-button"
+                disabled={streaming}
+                onClick={() => {
+                  patchConversation(activeConversation.id, (item) => ({
+                    ...item,
+                    memory: "",
+                    updatedAt: Date.now(),
+                  }));
+                  setNotice("ล้างความจำของแชตแล้ว");
+                }}
+              >
+                ล้างความจำของแชต
+              </button>
+            ) : null}
           </div>
 
           <label className="setting-block">
@@ -2372,9 +2651,10 @@ export default function Home() {
           <div className="info-card">
             <strong>ข้อมูลส่วนตัวบนเครื่อง</strong>
             <p>
-              ประวัติแชตและการตั้งค่า เก็บไว้ในเบราว์เซอร์เครื่องนี้
-              ส่วนข้อความที่ถาม AI จะถูกส่งผ่านเซิร์ฟเวอร์ของ ThaiBan AI ไปยัง
-              Kob AI เพื่อประมวลผล
+              ประวัติแชต ข้อความ และเนื้อหาไฟล์ที่สกัดแล้วเก็บใน IndexedDB
+              ของเบราว์เซอร์เครื่องนี้ ส่วนการตั้งค่ายังคงเก็บใน localStorage
+              ข้อความที่ถาม AI จะถูกส่งผ่านเซิร์ฟเวอร์ของ ThaiBan AI ไปยัง Kob AI
+              เพื่อประมวลผล
             </p>
           </div>
 
