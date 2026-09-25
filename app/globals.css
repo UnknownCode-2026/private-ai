@@ -3292,3 +3292,38 @@ html[data-theme="light"] .code-wrap > div:not(.code-toolbar) {
     width: 100%;
   }
 }
+
+
+/* Conversation context status */
+.context-status {
+  width: min(760px, 100%);
+  margin: 0 auto 8px;
+  padding: 9px 12px;
+  display: grid;
+  gap: 2px;
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary) 5%, var(--surface));
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.context-status span {
+  font-weight: 650;
+}
+
+.context-status small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+@media (max-width: 599px) {
+  .context-status {
+    width: 100%;
+    margin-bottom: 6px;
+    padding: 8px 10px;
+    border-radius: 11px;
+  }
+}
