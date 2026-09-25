@@ -3353,3 +3353,85 @@ html[data-theme="light"] .code-wrap > div:not(.code-toolbar) {
     transform: rotate(360deg);
   }
 }
+
+
+/* ThaiBan AI V1.2 */
+.history-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 12px 10px;
+  padding: 0 10px;
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+.history-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+.history-search button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 5px;
+  cursor: pointer;
+}
+.history-empty {
+  padding: 22px 14px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+.setting-help {
+  margin: 7px 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.secondary-setting-button,
+.data-tool-buttons button,
+.data-tool-buttons label {
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.secondary-setting-button {
+  width: 100%;
+  padding: 8px 12px;
+}
+.data-tool-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.data-tool-buttons button,
+.data-tool-buttons label {
+  display: grid;
+  place-items: center;
+  padding: 8px 10px;
+}
+.data-tool-buttons input {
+  display: none;
+}
+@media (max-width: 480px) {
+  .data-tool-buttons {
+    grid-template-columns: 1fr;
+  }
+}
