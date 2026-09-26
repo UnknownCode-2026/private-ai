@@ -731,15 +731,15 @@ export async function POST(request: Request) {
                 /[\\n.!?。！？]\s*$/u.test(pendingText);
 
               if (shouldFlush) {
-                const quality = thaiQuality(pendingText);
-                if (!quality.suspicious) {
-                  sentVisibleText = true;
-                  const safe = JSON.stringify({
-                    choices: [{ delta: { content: pendingText } }],
-                  });
-                  controller.enqueue(encoder.encode(`data: ${safe}\n\n`));
-                  pendingText = "";
-                }
+                // Never discard a streamed chunk. Dropping a chunk here can
+                // cut HTML/code answers in the middle and make the response
+                // appear to stop unexpectedly.
+                sentVisibleText = true;
+                const safe = JSON.stringify({
+                  choices: [{ delta: { content: pendingText } }],
+                });
+                controller.enqueue(encoder.encode(`data: ${safe}\n\n`));
+                pendingText = "";
               }
             }
           } catch {
@@ -788,14 +788,13 @@ export async function POST(request: Request) {
           }
 
           if (pendingText) {
-            const quality = thaiQuality(pendingText);
-            if (!quality.suspicious) {
-              sentVisibleText = true;
-              const safe = JSON.stringify({
-                choices: [{ delta: { content: pendingText } }],
-              });
-              controller.enqueue(encoder.encode(`data: ${safe}\n\n`));
-            }
+            // Always flush the final buffered fragment so code blocks and
+            // sentences are never truncated at the end of a stream.
+            sentVisibleText = true;
+            const safe = JSON.stringify({
+              choices: [{ delta: { content: pendingText } }],
+            });
+            controller.enqueue(encoder.encode(`data: ${safe}\n\n`));
             pendingText = "";
           }
 
