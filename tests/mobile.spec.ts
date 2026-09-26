@@ -156,6 +156,12 @@ test("stop, regenerate, copy, rename, delete and logout", async ({
   await expect(page.getByLabel("ส่งข้อความ", { exact: true })).toBeVisible();
   await page.getByLabel("ข้อความถึง ThaiBan AI").fill("คำตอบปกติ");
   await page.getByLabel("ส่งข้อความ", { exact: true }).click();
+  const latestUser = page.locator(".message-row.user").last();
+  await latestUser.getByRole("button", { name: "แก้ไขและส่งใหม่" }).click();
+  await expect(page.locator(".editing-banner")).toContainText("กำลังแก้ไขข้อความเดิม");
+  await page.getByLabel("ข้อความถึง ThaiBan AI").fill("ข้อความที่แก้ไข");
+  await page.getByLabel("ส่งข้อความ", { exact: true }).click();
+  await expect(page.locator(".message-row.user").last()).toContainText("ข้อความที่แก้ไข");
   await expect(
     page.getByRole("button", { name: "สร้างคำตอบใหม่" }),
   ).toBeVisible();
@@ -205,6 +211,6 @@ test("API auth, errors and PWA", async ({ request }) => {
   for (const icon of manifest.icons)
     expect((await request.get(icon.src)).status()).toBe(200);
   expect(await (await request.get("/sw.js")).text()).toContain(
-    "thaiban-ai-v1.3",
+    "thaiban-ai-v1.4",
   );
 });
