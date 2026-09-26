@@ -691,8 +691,12 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [modelPickerReturnToSettings, setModelPickerReturnToSettings] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
   const [historySearch, setHistorySearch] = useState("");
+  const [renameTarget, setRenameTarget] = useState<Conversation | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null);
   const [notice, setNotice] = useState("");
   const [storageError, setStorageError] = useState(false);
   const [mobile, setMobile] = useState(true);
@@ -1088,17 +1092,33 @@ export default function Home() {
   }
 
   function renameChat(chat: Conversation) {
-    const name = window.prompt("ตั้งชื่อแชต", chat.title)?.trim();
-    if (!name) return;
-    patchConversation(chat.id, (item) => ({
+    setDeleteTarget(null);
+    setRenameTarget(chat);
+    setRenameValue(chat.title);
+  }
+
+  function saveRenamedChat() {
+    const name = renameValue.trim();
+    if (!renameTarget || !name) return;
+    patchConversation(renameTarget.id, (item) => ({
       ...item,
-      title: name,
+      title: name.slice(0, 80),
       updatedAt: Date.now(),
     }));
+    setRenameTarget(null);
+    setRenameValue("");
   }
 
   function deleteChat(id: string) {
-    if (!window.confirm("ต้องการลบแชตนี้หรือไม่?")) return;
+    const chat = conversations.find((item) => item.id === id);
+    if (!chat) return;
+    setRenameTarget(null);
+    setDeleteTarget(chat);
+  }
+
+  function confirmDeleteChat() {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
     setConversations((previous) => {
       const next = previous.filter((item) => item.id !== id);
       if (!next.length) {
@@ -1109,6 +1129,7 @@ export default function Home() {
       if (id === activeId) setActiveId(next[0].id);
       return next;
     });
+    setDeleteTarget(null);
   }
 
   function editConversationMemory() {
@@ -1733,6 +1754,18 @@ export default function Home() {
     abortRef.current?.abort();
   }
 
+  function openModelPicker(returnToSettings = false) {
+    setModelSearch("");
+    setModelPickerReturnToSettings(returnToSettings);
+    if (returnToSettings) setSettingsOpen(false);
+    setModelPickerOpen(true);
+  }
+
+  function closeModelPicker() {
+    setModelPickerOpen(false);
+    if (modelPickerReturnToSettings) setSettingsOpen(true);
+  }
+
   function onInputKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (
       settings.enterToSend &&
@@ -1809,7 +1842,7 @@ export default function Home() {
             {authBusy ? "กำลังตรวจสอบ..." : "เข้าสู่ระบบ"}
           </button>
           <p className="tiny">พื้นที่ส่วนตัว สำหรับทุกความคิดของคุณ</p>
-          <span className="version-label">ThaiBan AI V1.2</span>
+          <span className="version-label">ThaiBan AI V1.3</span>
         </form>
       </main>
     );
@@ -1836,7 +1869,7 @@ export default function Home() {
 
       <aside
         ref={sidebarRef}
-        inert={(mobile && !sidebarOpen) || settingsOpen || modelPickerOpen}
+        inert={(mobile && !sidebarOpen) || settingsOpen || modelPickerOpen || Boolean(renameTarget) || Boolean(deleteTarget)}
         aria-label="เมนูและประวัติแชต"
         role={mobile ? "dialog" : undefined}
         aria-modal={mobile && sidebarOpen ? true : undefined}
@@ -1847,7 +1880,7 @@ export default function Home() {
             <div className="brand-mark small">T</div>
             <div>
               <strong>ThaiBan AI</strong>
-              <span>พื้นที่ส่วนตัว · V1.2</span>
+              <span>พื้นที่ส่วนตัว · V1.3</span>
             </div>
           </div>
           <button
@@ -1964,7 +1997,7 @@ export default function Home() {
 
       <section
         className="main-panel"
-        inert={settingsOpen || modelPickerOpen || (mobile && sidebarOpen)}
+        inert={settingsOpen || modelPickerOpen || Boolean(renameTarget) || Boolean(deleteTarget) || (mobile && sidebarOpen)}
       >
         <header className="topbar">
           <button
@@ -1977,10 +2010,25 @@ export default function Home() {
             <ThaiBanIcon name="menu" size={22} />
           </button>
           <div className="topbar-title">
-            {activeConversation.title !== "แชตใหม่" ? (
-              <strong>{activeConversation.title}</strong>
-            ) : null}
+            <strong>
+              {activeConversation.title !== "แชตใหม่"
+                ? activeConversation.title
+                : "ThaiBan AI"}
+            </strong>
           </div>
+          <button
+            className="topbar-model-trigger"
+            type="button"
+            aria-label="เลือกโมเดล AI"
+            onClick={() => openModelPicker(false)}
+            disabled={!models.length}
+          >
+            <span className="topbar-model-dot" aria-hidden="true" />
+            <span className="topbar-model-name">
+              {settings.model || "เลือกโมเดล"}
+            </span>
+            <span className="topbar-model-chevron" aria-hidden="true">⌄</span>
+          </button>
           <button
             className="icon-button topbar-settings"
             type="button"
@@ -2352,12 +2400,127 @@ export default function Home() {
         </div>
       </section>
 
+      {renameTarget ? (
+        <>
+          <div
+            className="backdrop action-dialog-backdrop show"
+            onClick={() => {
+              setRenameTarget(null);
+              setRenameValue("");
+            }}
+          />
+          <form
+            className="action-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="เปลี่ยนชื่อแชต"
+            onSubmit={(event) => {
+              event.preventDefault();
+              saveRenamedChat();
+            }}
+          >
+            <div className="action-dialog-head">
+              <div>
+                <span className="action-dialog-eyebrow">จัดการแชต</span>
+                <h2>เปลี่ยนชื่อแชต</h2>
+              </div>
+              <button
+                className="icon-button"
+                type="button"
+                aria-label="ปิดกล่องเปลี่ยนชื่อ"
+                onClick={() => {
+                  setRenameTarget(null);
+                  setRenameValue("");
+                }}
+              >
+                <ThaiBanIcon name="close" size={20} />
+              </button>
+            </div>
+            <label className="action-dialog-field">
+              <span>ชื่อแชต</span>
+              <input
+                autoFocus
+                value={renameValue}
+                maxLength={80}
+                onChange={(event) => setRenameValue(event.target.value)}
+                placeholder="ตั้งชื่อแชต"
+              />
+            </label>
+            <div className="action-dialog-actions">
+              <button
+                type="button"
+                className="dialog-secondary"
+                onClick={() => {
+                  setRenameTarget(null);
+                  setRenameValue("");
+                }}
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="submit"
+                className="dialog-primary"
+                disabled={!renameValue.trim()}
+              >
+                บันทึก
+              </button>
+            </div>
+          </form>
+        </>
+      ) : null}
+
+      {deleteTarget ? (
+        <>
+          <div
+            className="backdrop action-dialog-backdrop show"
+            onClick={() => setDeleteTarget(null)}
+          />
+          <section
+            className="action-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="ยืนยันลบแชต"
+          >
+            <div className="action-dialog-head">
+              <div>
+                <span className="action-dialog-eyebrow danger">ลบแชต</span>
+                <h2>ลบแชตนี้หรือไม่?</h2>
+              </div>
+              <button
+                className="icon-button"
+                type="button"
+                aria-label="ปิดกล่องยืนยันลบ"
+                onClick={() => setDeleteTarget(null)}
+              >
+                <ThaiBanIcon name="close" size={20} />
+              </button>
+            </div>
+            <p className="action-dialog-copy">
+              “{deleteTarget.title}” จะถูกลบออกจากอุปกรณ์นี้ และไม่สามารถย้อนกลับได้
+            </p>
+            <div className="action-dialog-actions">
+              <button
+                type="button"
+                className="dialog-secondary"
+                onClick={() => setDeleteTarget(null)}
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                className="dialog-danger"
+                onClick={confirmDeleteChat}
+              >
+                ลบแชต
+              </button>
+            </div>
+          </section>
+        </>
+      ) : null}
+
       <div
         className={`backdrop model-picker-backdrop ${modelPickerOpen ? "show" : ""}`}
-        onClick={() => {
-          setModelPickerOpen(false);
-          setSettingsOpen(true);
-        }}
+        onClick={closeModelPicker}
       />
       <section
         ref={modelPickerRef}
@@ -2377,10 +2540,7 @@ export default function Home() {
             className="icon-button"
             type="button"
             aria-label="ปิดตัวเลือกโมเดล"
-            onClick={() => {
-              setModelPickerOpen(false);
-              setSettingsOpen(true);
-            }}
+            onClick={closeModelPicker}
           >
             <ThaiBanIcon name="close" size={21} />
           </button>
@@ -2409,8 +2569,7 @@ export default function Home() {
                       ...previous,
                       model: model.id,
                     }));
-                    setModelPickerOpen(false);
-                    setSettingsOpen(true);
+                    closeModelPicker();
                   }}
                 >
                   <span className="model-picker-mark" aria-hidden="true">
@@ -2456,6 +2615,10 @@ export default function Home() {
         </div>
 
         <div className="settings-scroll">
+          <div className="settings-section-heading">
+            <strong>AI และโมเดล</strong>
+            <span>เลือกโมเดลและกำหนดรูปแบบการตอบ</span>
+          </div>
           <div className="setting-block">
             <span className="setting-label-row">
               <span>โมเดลเริ่มต้น</span>
@@ -2464,11 +2627,7 @@ export default function Home() {
             <button
               type="button"
               className="model-picker-trigger"
-              onClick={() => {
-                setModelSearch("");
-                setSettingsOpen(false);
-                setModelPickerOpen(true);
-              }}
+              onClick={() => openModelPicker(true)}
               disabled={!models.length}
               aria-haspopup="dialog"
             >
@@ -2578,6 +2737,11 @@ export default function Home() {
             />
           </label>
 
+          <div className="settings-section-heading">
+            <strong>การใช้งานและหน้าตา</strong>
+            <span>ปรับพฤติกรรมการพิมพ์และธีม</span>
+          </div>
+
           <div className="toggle-row">
             <div>
               <strong>กด Enter เพื่อส่ง</strong>
@@ -2624,8 +2788,13 @@ export default function Home() {
             </div>
           </div>
 
+          <div className="settings-section-heading">
+            <strong>ข้อมูลและความเป็นส่วนตัว</strong>
+            <span>สำรองข้อมูลและจัดการข้อมูลบนอุปกรณ์นี้</span>
+          </div>
+
           <div className="setting-block data-tools">
-            <span>สำรองข้อมูล V1.2</span>
+            <span>สำรองข้อมูล</span>
             <p className="setting-help">
               ส่งออกประวัติแชต ความจำ และการตั้งค่าเป็น JSON หรือนำไฟล์สำรองกลับมาใช้
             </p>
