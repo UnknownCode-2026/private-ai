@@ -43,6 +43,12 @@ for (const [width, height] of sizes) {
     await session(page);
     await noOverflow(page);
     await page.screenshot({ path: `test-results/welcome-${width}.png` });
+    await page.getByRole("button", { name: "เลือกโมเดล AI", exact: true }).click();
+    await expect(
+      page.getByRole("dialog", { name: "เลือกโมเดล AI", exact: true }),
+    ).toBeVisible();
+    await noOverflow(page);
+    await page.getByLabel("ปิดตัวเลือกโมเดล", { exact: true }).click();
     await page
       .getByLabel("ข้อความถึง ThaiBan AI")
       .fill("ทดสอบ " + "ยาว".repeat(150));
@@ -160,13 +166,18 @@ test("stop, regenerate, copy, rename, delete and logout", async ({
   await page.locator(".code-copy").last().click();
   await expect(page.locator(".notice")).toContainText("คัดลอกแล้ว");
   await page.getByLabel("เปิดเมนู").click();
-  page.once("dialog", (d) => d.accept("ชื่อใหม่"));
   await page.getByLabel("เปลี่ยนชื่อแชต").click();
+  const renameDialog = page.getByRole("dialog", { name: "เปลี่ยนชื่อแชต" });
+  await expect(renameDialog).toBeVisible();
+  await renameDialog.getByLabel("ชื่อแชต").fill("ชื่อใหม่");
+  await renameDialog.getByRole("button", { name: "บันทึก" }).click();
   await expect(page.locator(".chat-title")).toHaveText("ชื่อใหม่");
   await page.getByRole("button", { name: "แชตใหม่", exact: true }).click();
   await page.getByLabel("เปิดเมนู").click();
-  page.once("dialog", (d) => d.accept());
   await page.getByLabel("ลบแชต").first().click();
+  const deleteDialog = page.getByRole("dialog", { name: "ยืนยันลบแชต" });
+  await expect(deleteDialog).toBeVisible();
+  await deleteDialog.getByRole("button", { name: "ลบแชต" }).click();
   await expect(page.locator(".chat-title")).toHaveText("ชื่อใหม่");
   await page.getByRole("button", { name: "ออกจากระบบ" }).click();
   await expect(page.getByRole("heading", { name: "ThaiBan AI" })).toBeVisible();
@@ -194,6 +205,6 @@ test("API auth, errors and PWA", async ({ request }) => {
   for (const icon of manifest.icons)
     expect((await request.get(icon.src)).status()).toBe(200);
   expect(await (await request.get("/sw.js")).text()).toContain(
-    "thaiban-ai-v1.2",
+    "thaiban-ai-v1.3",
   );
 });
