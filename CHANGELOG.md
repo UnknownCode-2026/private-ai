@@ -1,5 +1,7 @@
 # ThaiBan AI V1.4
 
+- Release: Production V1.4 · 26 กันยายน 2026
+
 - Chat Experience polish บน safe buffered streaming
 - เพิ่มสถานะกำลังเตรียมคำตอบ/กำลังตอบ
 - เพิ่มแก้ไขข้อความแล้วส่งใหม่ และ regenerate จากข้อความ AI แต่ละจุด
