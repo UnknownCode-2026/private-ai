@@ -1,4 +1,15 @@
-# ThaiBan AI V1.3
+# ThaiBan AI V1.4
+
+- Chat Experience polish บน safe buffered streaming
+- เพิ่มสถานะกำลังเตรียมคำตอบ/กำลังตอบ
+- เพิ่มแก้ไขข้อความแล้วส่งใหม่ และ regenerate จากข้อความ AI แต่ละจุด
+- เพิ่ม Drag & Drop ไฟล์ และ Paste รูปจาก Clipboard
+- เพิ่มปุ่มกลับไปข้อความล่าสุดเมื่อเลื่อนอ่านด้านบน
+- Model Picker แสดง provider/เจ้าของโมเดล
+- Mobile Composer และ Message Actions polish
+- เพิ่ม E2E edit-and-resend และ PWA cache V1.4
+
+## ThaiBan AI V1.3
 
 - UX/UI polish ทั้งเว็บไซต์ โดยคงฟังก์ชัน V1.2
 - เพิ่ม Model Picker บนหัวแชต
