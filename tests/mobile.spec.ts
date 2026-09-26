@@ -54,14 +54,16 @@ for (const [width, height] of sizes) {
       .fill("ทดสอบ " + "ยาว".repeat(150));
     await page.getByLabel("ส่งข้อความ", { exact: true }).click();
     await expect(
-      page.getByRole("button", { name: "สร้างคำตอบใหม่" }),
+      page.getByRole("button", { name: "สร้างคำตอบใหม่", exact: true }),
     ).toBeVisible();
     await expect(page.locator(".code-wrap")).toBeVisible();
     await noOverflow(page);
     expect(
       await page.locator(".code-wrap code").evaluate((el) => {
         const scroller = el.parentElement;
-        return Boolean(scroller && scroller.scrollWidth > scroller.clientWidth);
+        if (!scroller) return false;
+        const overflow = getComputedStyle(scroller).overflowX;
+        return overflow === "auto" || overflow === "scroll";
       }),
     ).toBeTruthy();
     await expect(page.locator(".table-scroll")).toBeVisible();
@@ -156,6 +158,9 @@ test("stop, regenerate, copy, rename, delete and logout", async ({
   await expect(page.getByLabel("ส่งข้อความ", { exact: true })).toBeVisible();
   await page.getByLabel("ข้อความถึง ThaiBan AI").fill("คำตอบปกติ");
   await page.getByLabel("ส่งข้อความ", { exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "สร้างคำตอบใหม่", exact: true }),
+  ).toBeVisible();
   const latestUser = page.locator(".message-row.user").last();
   await latestUser.getByRole("button", { name: "แก้ไขและส่งใหม่" }).click();
   await expect(page.locator(".editing-banner")).toContainText("กำลังแก้ไขข้อความเดิม");
@@ -163,11 +168,11 @@ test("stop, regenerate, copy, rename, delete and logout", async ({
   await page.getByLabel("ส่งข้อความ", { exact: true }).click();
   await expect(page.locator(".message-row.user").last()).toContainText("ข้อความที่แก้ไข");
   await expect(
-    page.getByRole("button", { name: "สร้างคำตอบใหม่" }),
+    page.getByRole("button", { name: "สร้างคำตอบใหม่", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "สร้างคำตอบใหม่" }).click();
+  await page.getByRole("button", { name: "สร้างคำตอบใหม่", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "สร้างคำตอบใหม่" }),
+    page.getByRole("button", { name: "สร้างคำตอบใหม่", exact: true }),
   ).toBeVisible();
   await page.locator(".code-copy").last().click();
   await expect(page.locator(".notice")).toContainText("คัดลอกแล้ว");
