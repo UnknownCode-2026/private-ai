@@ -251,6 +251,19 @@ function streamError(error: ApiError) {
 }
 
 const CONTEXT_TOKEN_BUDGET = 24_000;
+const THAI_REPAIR_PROMPT =
+  "เขียนคำตอบต่อไปนี้ใหม่เป็นภาษาไทยมาตรฐานที่ถูกต้อง อ่านรู้เรื่อง และคงสาระสำคัญเดิมทั้งหมด หากมีโค้ด ชื่อไฟล์ URL ชื่อแพ็กเกจ หรือคำสั่ง ให้คงส่วนนั้นตามเดิม ตอบเฉพาะฉบับที่แก้แล้ว:";
+
+function thaiQuality(text: string) {
+  const thai = (text.match(/[\u0E00-\u0E7F]/g) || []).length;
+  const letters = (text.match(/[\p{L}]/gu) || []).length;
+  const thaiRatio = letters ? thai / letters : 1;
+  const suspicious =
+    thai >= 20 &&
+    (thaiRatio < 0.72 ||
+      /(?:[ก-ฮ]{18,}|[เแโใไ][เแโใไ]{2,}|[ๆฯ]{3,})/u.test(text));
+  return { thaiRatio, suspicious };
+}
 const RECENT_CONTEXT_RATIO = 0.65;
 
 function estimateChatTokens(message: ChatMessage) {
@@ -615,7 +628,7 @@ export async function POST(request: Request) {
         );
       }
 
-      const content = visibleText(data);
+      let content = visibleText(data);
       if (!content.trim()) {
         return errorResponse(
           {
@@ -625,6 +638,36 @@ export async function POST(request: Request) {
           },
           502,
         );
+      }
+
+      const quality = thaiQuality(content);
+      if (quality.suspicious) {
+        try {
+          const repair = await fetch(`${baseUrl()}/chat/completions`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify({
+              model: body.model,
+              messages: [
+                { role: "system", content: THAI_REPAIR_PROMPT },
+                { role: "user", content },
+              ],
+              temperature: 0.2,
+              max_tokens: maxTokens,
+              stream: false,
+            }),
+          });
+          if (repair.ok) {
+            const repaired = visibleText(await repair.json());
+            if (repaired.trim()) content = repaired;
+          }
+        } catch {
+          // Keep the original answer if repair is unavailable.
+        }
       }
 
       const safe = JSON.stringify({
