@@ -1,3 +1,19 @@
+# ThaiBan AI V1.3
+
+- UX/UI polish ทั้งเว็บไซต์ โดยคงฟังก์ชัน V1.2
+- เพิ่ม Model Picker บนหัวแชต
+- Settings แบ่งเป็น 3 หมวดและปรับ visual hierarchy
+- Rename/Delete chat ใช้ dialog ภายในเว็บแทน browser prompt/confirm
+- ปรับ Login, Topbar, Composer, Sheet, Modal, safe-area และ responsive
+- เพิ่ม E2E สำหรับ Model Picker และ dialog ใหม่
+- PWA cache bump เป็น V1.3
+
+## ThaiBan AI V1.2
+
+- Search History, Conversation Memory, Smart Context Retrieval และ AI Intelligence Layer V2
+- รองรับหลายไฟล์, PDF/DOCX extraction, IndexedDB และ Export/Import JSON
+- Model compatibility fallback, streaming และระบบเดิมของ V1.1
+
 # ThaiBan AI V1.1
 
 - Full Rebrand: ชื่อและเครื่องหมาย TB ใน UI และ metadata
