@@ -538,11 +538,13 @@ export async function POST(request: Request) {
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
-          Accept: "text/event-stream, application/json",
+          Accept: "application/json",
         },
         body: JSON.stringify({
           ...candidatePayload,
-          stream: true,
+          // Buffer the complete model answer before showing it. This prevents
+          // corrupted Thai chunks from reaching the UI before validation.
+          stream: false,
         }),
         signal: upstreamController.signal,
       });
