@@ -3821,9 +3821,6 @@ html[data-theme="light"] .code-wrap > div:not(.code-toolbar) {
   font-weight: 700;
   white-space: nowrap;
 }
-.composer-zone {
-  position: relative;
-}
 .composer-zone.drag-active {
   outline: 2px dashed color-mix(in srgb, var(--text) 32%, var(--border));
   outline-offset: -8px;
@@ -3903,4 +3900,27 @@ html[data-theme="light"] .code-wrap > div:not(.code-toolbar) {
   .editing-banner small {
     display: none;
   }
+}
+
+
+/* V1.4 action visibility: user actions were intentionally hidden in the V1.3 compact bubble layout. */
+.message-row.user .message-meta {
+  display: flex !important;
+  justify-content: flex-end;
+  min-height: 34px;
+  margin: 0 0 6px;
+}
+.message-row.user .message-meta > strong {
+  display: none;
+}
+.message-row.user .message-actions {
+  margin-left: auto;
+}
+.message-row.user .message-actions button {
+  margin-left: 0;
+  min-width: 34px;
+  width: 34px;
+  min-height: 34px;
+  height: 34px;
+  padding: 0;
 }
