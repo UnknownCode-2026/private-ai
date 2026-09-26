@@ -2,7 +2,7 @@ name: ตรวจสอบ ThaiBan AI
 
 on:
   push:
-    branches: [main, thaibanai-v1.1-validation, thaibanai-v1.3-validation]
+    branches: [main, thaibanai-v1.1-validation, thaibanai-v1.3-validation, thaibanai-v1.4-validation]
   workflow_dispatch:
 
 jobs:
