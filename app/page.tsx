@@ -688,6 +688,12 @@ export default function Home() {
   const [fileProcessing, setFileProcessing] = useState(false);
   const [fileProcessingName, setFileProcessingName] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [generationPhase, setGenerationPhase] = useState<
+    "idle" | "preparing" | "streaming"
+  >("idle");
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
@@ -942,10 +948,12 @@ export default function Home() {
   }, [authenticated, historyReady]);
 
   useEffect(() => {
-    if (followRef.current && messagesRef.current)
+    if (followRef.current && messagesRef.current) {
       messagesRef.current.scrollTop = activeConversation?.messages.length
         ? messagesRef.current.scrollHeight
         : 0;
+      setShowScrollToBottom(false);
+    }
   }, [activeConversation?.messages, streaming]);
 
   useEffect(() => {
@@ -1066,6 +1074,8 @@ export default function Home() {
   function newChat() {
     if (streaming) return;
     followRef.current = true;
+    setShowScrollToBottom(false);
+    setEditingMessageId(null);
     const chat = blankConversation();
     setConversations((previous) => [chat, ...previous]);
     setActiveId(chat.id);
@@ -1079,6 +1089,8 @@ export default function Home() {
   function selectChat(id: string, messageId?: string) {
     if (streaming) return;
     followRef.current = !messageId;
+    setShowScrollToBottom(Boolean(messageId));
+    setEditingMessageId(null);
     setActiveId(id);
     setSidebarOpen(false);
 
@@ -1163,7 +1175,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `thaiban-ai-v1.2-backup-${new Date()
+    anchor.download = `thaiban-ai-v1.4-backup-${new Date()
       .toISOString()
       .slice(0, 10)}.json`;
     anchor.click();
@@ -1255,6 +1267,57 @@ export default function Home() {
     setConversations([]);
     setSidebarOpen(false);
     setSettingsOpen(false);
+  }
+
+  async function prepareImage(file: File) {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setNotice("รองรับรูปภาพเฉพาะ JPG, PNG และ WebP");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setNotice("รูปภาพต้องมีขนาดไม่เกิน 5 MB");
+      return;
+    }
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () =>
+          typeof reader.result === "string"
+            ? resolve(reader.result)
+            : reject(new Error("image"));
+        reader.onerror = () => reject(new Error("image"));
+        reader.readAsDataURL(file);
+      });
+      setPendingImage({ dataUrl, name: file.name || "รูปภาพ", type: file.type });
+      setPendingFiles([]);
+      setNotice("");
+    } catch {
+      setNotice("อ่านรูปภาพไม่สำเร็จ กรุณาลองใหม่");
+    }
+  }
+
+  async function queueAttachments(selected: File[]) {
+    if (!selected.length || streaming || fileProcessing) return;
+    const images = selected.filter((file) => file.type.startsWith("image/"));
+    if (images.length) {
+      if (selected.length !== 1) {
+        setNotice("รูปภาพแนบได้ครั้งละ 1 รูป และไม่รวมกับไฟล์เอกสาร");
+        return;
+      }
+      await prepareImage(images[0]);
+      return;
+    }
+    const capacity = Math.max(0, MAX_PENDING_FILES - pendingFiles.length);
+    const accepted = selected.slice(0, capacity);
+    if (!capacity) {
+      setNotice(`แนบได้สูงสุด ${MAX_PENDING_FILES} ไฟล์ต่อข้อความ`);
+      return;
+    }
+    if (selected.length > capacity) {
+      setNotice(`แนบได้สูงสุด ${MAX_PENDING_FILES} ไฟล์ต่อข้อความ`);
+    }
+    setPendingImage(null);
+    for (const file of accepted) await prepareFile(file);
   }
 
   async function prepareFile(file: File) {
@@ -1415,6 +1478,7 @@ export default function Home() {
     const controller = new AbortController();
     abortRef.current = controller;
     setStreaming(true);
+    setGenerationPhase("preparing");
     setNotice("");
 
     let full = "";
@@ -1531,6 +1595,7 @@ export default function Home() {
         throw parseError(data?.error);
       }
 
+      setGenerationPhase("streaming");
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -1645,6 +1710,7 @@ export default function Home() {
       }
     } finally {
       abortRef.current = null;
+      setGenerationPhase("idle");
       setStreaming(false);
     }
   }
@@ -1679,7 +1745,14 @@ export default function Home() {
       image: pendingImage ?? undefined,
       files: pendingFiles.length ? pendingFiles : undefined,
     };
-    const nextMessages = [...chat.messages, userMessage];
+    const editIndex = editingMessageId
+      ? chat.messages.findIndex(
+          (message) => message.id === editingMessageId && message.role === "user",
+        )
+      : -1;
+    const baseMessages =
+      editIndex >= 0 ? chat.messages.slice(0, editIndex) : chat.messages;
+    const nextMessages = [...baseMessages, userMessage];
     const titleSource =
       content ||
       (pendingFiles.length
@@ -1688,11 +1761,15 @@ export default function Home() {
           ? "รูปภาพ"
           : "");
     const title =
-      chat.messages.length === 0
-        ? titleSource.replace(/\s+/g, " ").slice(0, 36) || "แชตใหม่"
-        : chat.title;
+      editIndex >= 0
+        ? chat.title
+        : chat.messages.length === 0
+          ? titleSource.replace(/\s+/g, " ").slice(0, 36) || "แชตใหม่"
+          : chat.title;
 
     followRef.current = true;
+    setShowScrollToBottom(false);
+    setEditingMessageId(null);
     setInput("");
     setPendingImage(null);
     setPendingFiles([]);
@@ -1728,26 +1805,58 @@ export default function Home() {
     await streamReply(chat.id, source);
   }
 
-  async function regenerate() {
+  function startEditMessage(messageId: string) {
     const chat = activeConversation;
     if (!chat || streaming) return;
+    const message = chat.messages.find(
+      (item) => item.id === messageId && item.role === "user",
+    );
+    if (!message) return;
+    setEditingMessageId(message.id);
+    setInput(message.content);
+    setPendingImage(message.image ?? null);
+    setPendingFiles(messageFiles(message));
+    followRef.current = true;
+    setShowScrollToBottom(false);
+    setTimeout(() => inputRef.current?.focus(), 30);
+  }
 
-    const lastAssistantIndex = [...chat.messages]
-      .map((message) => message.role)
-      .lastIndexOf("assistant");
-    const source =
-      lastAssistantIndex >= 0
-        ? chat.messages.slice(0, lastAssistantIndex)
-        : chat.messages;
+  function cancelEditMessage() {
+    setEditingMessageId(null);
+    setInput("");
+    setPendingImage(null);
+    setPendingFiles([]);
+    inputRef.current?.focus();
+  }
 
+  async function regenerateFromAssistant(messageId: string) {
+    const chat = activeConversation;
+    if (!chat || streaming) return;
+    const assistantIndex = chat.messages.findIndex(
+      (message) => message.id === messageId && message.role === "assistant",
+    );
+    if (assistantIndex < 1) return;
+    const source = chat.messages.slice(0, assistantIndex);
     if (!source.length || source[source.length - 1]?.role !== "user") return;
-
+    setEditingMessageId(null);
+    followRef.current = true;
+    setShowScrollToBottom(false);
     patchConversation(chat.id, (item) => ({
       ...item,
       messages: source,
       updatedAt: Date.now(),
     }));
     await streamReply(chat.id, source);
+  }
+
+  async function regenerate() {
+    const chat = activeConversation;
+    if (!chat || streaming) return;
+    const lastAssistant = [...chat.messages]
+      .reverse()
+      .find((message) => message.role === "assistant");
+    if (!lastAssistant) return;
+    await regenerateFromAssistant(lastAssistant.id);
   }
 
   function stopStreaming() {
@@ -1842,7 +1951,7 @@ export default function Home() {
             {authBusy ? "กำลังตรวจสอบ..." : "เข้าสู่ระบบ"}
           </button>
           <p className="tiny">พื้นที่ส่วนตัว สำหรับทุกความคิดของคุณ</p>
-          <span className="version-label">ThaiBan AI V1.3</span>
+          <span className="version-label">ThaiBan AI V1.4</span>
         </form>
       </main>
     );
@@ -1880,7 +1989,7 @@ export default function Home() {
             <div className="brand-mark small">T</div>
             <div>
               <strong>ThaiBan AI</strong>
-              <span>พื้นที่ส่วนตัว · V1.3</span>
+              <span>พื้นที่ส่วนตัว · V1.4</span>
             </div>
           </div>
           <button
@@ -2044,9 +2153,12 @@ export default function Home() {
           ref={messagesRef}
           onScroll={() => {
             const el = messagesRef.current;
-            if (el)
-              followRef.current =
+            if (el) {
+              const nearBottom =
                 el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+              followRef.current = nearBottom;
+              setShowScrollToBottom(!nearBottom);
+            }
           }}
         >
           {activeConversation.messages.length === 0 ? (
@@ -2103,15 +2215,38 @@ export default function Home() {
                     <strong>
                       {message.role === "user" ? "คุณ" : "ThaiBan AI"}
                     </strong>
-                    <button
-                      type="button"
-                      aria-label="คัดลอกข้อความ"
-                      title="คัดลอก"
-                      disabled={!message.content}
-                      onClick={() => void copyText(message.content)}
-                    >
-                      <ThaiBanIcon name="copy" size={18} />
-                    </button>
+                    <div className="message-actions">
+                      {message.role === "user" ? (
+                        <button
+                          type="button"
+                          aria-label="แก้ไขและส่งใหม่"
+                          title="แก้ไขและส่งใหม่"
+                          disabled={streaming}
+                          onClick={() => startEditMessage(message.id)}
+                        >
+                          <ThaiBanIcon name="edit" size={17} />
+                        </button>
+                      ) : message.content ? (
+                        <button
+                          type="button"
+                          aria-label="สร้างคำตอบใหม่จากข้อความนี้"
+                          title="สร้างคำตอบใหม่จากจุดนี้"
+                          disabled={streaming}
+                          onClick={() => void regenerateFromAssistant(message.id)}
+                        >
+                          <ThaiBanIcon name="refresh" size={17} />
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        aria-label="คัดลอกข้อความ"
+                        title="คัดลอก"
+                        disabled={!message.content}
+                        onClick={() => void copyText(message.content)}
+                      >
+                        <ThaiBanIcon name="copy" size={18} />
+                      </button>
+                    </div>
                   </div>
                   <div className="message-content">
                     {message.role === "user" && message.image ? (
@@ -2143,10 +2278,17 @@ export default function Home() {
                       message.content ? (
                         <Markdown onCopy={copyText}>{message.content}</Markdown>
                       ) : message.error ? null : (
-                        <div className="typing">
-                          <span />
-                          <span />
-                          <span />
+                        <div className="generation-status" role="status">
+                          <div className="typing" aria-hidden="true">
+                            <span />
+                            <span />
+                            <span />
+                          </div>
+                          <span>
+                            {generationPhase === "preparing"
+                              ? "กำลังเตรียมคำตอบ…"
+                              : "กำลังตอบ…"}
+                          </span>
                         </div>
                       )
                     ) : (
@@ -2189,7 +2331,58 @@ export default function Home() {
           <div ref={bottomRef} />
         </div>
 
-        <div className="composer-zone">
+        {showScrollToBottom ? (
+          <button
+            className="scroll-latest"
+            type="button"
+            onClick={() => {
+              followRef.current = true;
+              setShowScrollToBottom(false);
+              bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+            }}
+          >
+            ข้อความล่าสุด <span aria-hidden="true">↓</span>
+          </button>
+        ) : null}
+
+        <div
+          className={`composer-zone ${dragActive ? "drag-active" : ""}`}
+          onDragEnter={(event) => {
+            if (!event.dataTransfer.types.includes("Files")) return;
+            event.preventDefault();
+            setDragActive(true);
+          }}
+          onDragOver={(event) => {
+            if (!event.dataTransfer.types.includes("Files")) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "copy";
+            setDragActive(true);
+          }}
+          onDragLeave={(event) => {
+            if (
+              event.relatedTarget instanceof Node &&
+              event.currentTarget.contains(event.relatedTarget)
+            )
+              return;
+            setDragActive(false);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            setDragActive(false);
+            void queueAttachments(Array.from(event.dataTransfer.files || []));
+          }}
+        >
+          {editingMessageId ? (
+            <div className="editing-banner" role="status">
+              <span>
+                <strong>กำลังแก้ไขข้อความเดิม</strong>
+                <small>เมื่อส่ง ระบบจะตอบใหม่ต่อจากข้อความที่แก้ไข</small>
+              </span>
+              <button type="button" onClick={cancelEditMessage}>
+                ยกเลิก
+              </button>
+            </div>
+          ) : null}
           {activeContext && activeContext.droppedMessages > 0 ? (
             <div className="context-status" role="status">
               <span>บทสนทนายาว · ใช้บริบทล่าสุด {activeContext.usedMessages}/{activeContext.totalMessages} ข้อความ</span>
@@ -2289,28 +2482,7 @@ export default function Home() {
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 event.target.value = "";
-                if (!file) return;
-                if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-                  setNotice("รองรับเฉพาะ JPG, PNG และ WebP");
-                  return;
-                }
-                if (file.size > 5 * 1024 * 1024) {
-                  setNotice("รูปภาพต้องมีขนาดไม่เกิน 5 MB");
-                  return;
-                }
-                const reader = new FileReader();
-                reader.onload = () => {
-                  if (typeof reader.result !== "string") return;
-                  setPendingImage({
-                    dataUrl: reader.result,
-                    name: file.name,
-                    type: file.type,
-                  });
-                  setPendingFiles([]);
-                  setNotice("");
-                };
-                reader.onerror = () => setNotice("อ่านรูปภาพไม่สำเร็จ กรุณาลองใหม่");
-                reader.readAsDataURL(file);
+                if (file) void queueAttachments([file]);
               }}
             />
             <input
@@ -2323,26 +2495,7 @@ export default function Home() {
               onChange={(event) => {
                 const selected = Array.from(event.target.files || []);
                 event.target.value = "";
-                if (!selected.length) return;
-
-                const capacity = Math.max(
-                  0,
-                  MAX_PENDING_FILES - pendingFiles.length,
-                );
-                const accepted = selected.slice(0, capacity);
-
-                if (selected.length > capacity) {
-                  setNotice(
-                    `แนบได้สูงสุด ${MAX_PENDING_FILES} ไฟล์ต่อข้อความ`,
-                  );
-                }
-
-                setPendingImage(null);
-                void (async () => {
-                  for (const file of accepted) {
-                    await prepareFile(file);
-                  }
-                })();
+                void queueAttachments(selected);
               }}
             />
             <button
@@ -2365,7 +2518,17 @@ export default function Home() {
                 event.target.style.height = `${Math.min(event.target.scrollHeight, 160)}px`;
               }}
               onKeyDown={onInputKeyDown}
-              placeholder="พิมพ์ข้อความถึง ThaiBan AI..."
+              onPaste={(event) => {
+                const files = Array.from(event.clipboardData.files || []);
+                if (!files.length) return;
+                event.preventDefault();
+                void queueAttachments(files);
+              }}
+              placeholder={
+                editingMessageId
+                  ? "แก้ไขข้อความแล้วส่งใหม่..."
+                  : "พิมพ์ข้อความถึง ThaiBan AI..."
+              }
               rows={1}
               disabled={streaming}
             />
@@ -2575,7 +2738,12 @@ export default function Home() {
                   <span className="model-picker-mark" aria-hidden="true">
                     {selected ? "✓" : ""}
                   </span>
-                  <span className="model-picker-name">{model.id}</span>
+                  <span className="model-picker-copy">
+                    <span className="model-picker-name">{model.id}</span>
+                    {model.ownedBy ? (
+                      <small className="model-picker-owner">{model.ownedBy}</small>
+                    ) : null}
+                  </span>
                   {selected ? <small>กำลังใช้</small> : null}
                 </button>
               );
