@@ -2,6 +2,9 @@ const CACHE = "thaiban-ai-v1.4-logo-v5";
 const ASSETS = [
   "/icon.svg?v=5",
 ];
+const ASSET_PATHS = new Set(
+  ASSETS.map((asset) => new URL(asset, self.location.origin).pathname),
+);
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
@@ -35,7 +38,7 @@ self.addEventListener("fetch", (event) => {
   if (
     event.request.method !== "GET" ||
     url.origin !== self.location.origin ||
-    !ASSETS.includes(url.pathname)
+    !ASSET_PATHS.has(url.pathname)
   )
     return;
   event.respondWith(
