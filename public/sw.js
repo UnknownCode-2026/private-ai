@@ -1,6 +1,6 @@
-const CACHE = "thaiban-ai-v1.2-logo-v3";
+const CACHE = "thaiban-ai-v1.3-logo-v4";
 const ASSETS = [
-  "/icon.svg?v=3",
+  "/icon.svg?v=4",
 ];
 self.addEventListener("install", (event) => {
   event.waitUntil(
