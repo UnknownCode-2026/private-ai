@@ -3483,7 +3483,7 @@ html[data-theme="light"] .code-wrap > div:not(.code-toolbar) {
   font-weight: 500;
 }
 
-/* ThaiBan AI V1.3 — UX/UI polish */
+/* ThaiBan AI V1.4 — UX/UI polish */
 .topbar {
   grid-template-columns: 44px minmax(0, 1fr) 44px !important;
   grid-template-areas: "menu model settings" !important;
@@ -3700,7 +3700,7 @@ html[data-theme="light"] .code-wrap > div:not(.code-toolbar) {
   color: var(--danger);
 }
 .info-card strong::after {
-  content: " · V1.3" !important;
+  content: " · V1.4" !important;
 }
 
 @media (max-width: 599px) {
@@ -3764,5 +3764,143 @@ html[data-theme="light"] .code-wrap > div:not(.code-toolbar) {
   .composer,
   .primary-button {
     transition: none !important;
+  }
+}
+
+
+/* ThaiBan AI V1.4 — chat experience & interaction polish */
+.message-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.message-actions button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+}
+.message-actions button:hover,
+.message-actions button:focus-visible {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.message-actions button:disabled {
+  opacity: .35;
+}
+.generation-status {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.generation-status .typing {
+  flex: 0 0 auto;
+}
+.scroll-latest {
+  position: absolute;
+  z-index: 28;
+  left: 50%;
+  bottom: calc(112px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  min-height: 38px;
+  padding: 7px 13px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 95%, transparent);
+  color: var(--text);
+  box-shadow: var(--shadow-soft);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.composer-zone {
+  position: relative;
+}
+.composer-zone.drag-active {
+  outline: 2px dashed color-mix(in srgb, var(--text) 32%, var(--border));
+  outline-offset: -8px;
+  background: color-mix(in srgb, var(--surface-2) 55%, var(--surface));
+}
+.composer-zone.drag-active::after {
+  content: "วางไฟล์เพื่อแนบกับข้อความ";
+  position: absolute;
+  z-index: 35;
+  inset: 10px 14px auto;
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  pointer-events: none;
+}
+.editing-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.editing-banner > span {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+.editing-banner strong {
+  font-size: 12px;
+}
+.editing-banner small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+.editing-banner button {
+  min-height: 34px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+}
+.model-picker-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+}
+.model-picker-owner {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 599px) {
+  .scroll-latest {
+    bottom: calc(104px + env(safe-area-inset-bottom));
+  }
+  .message-actions button {
+    width: 36px;
+    height: 36px;
+  }
+  .editing-banner small {
+    display: none;
   }
 }
