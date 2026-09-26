@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "ThaiBan AI",
   description: "AI ส่วนตัวสำหรับการใช้งานของคุณ",
-  icons: { icon: "/icon.svg?v=3", shortcut: "/icon.svg?v=3", apple: "/icon.svg?v=3" },
+  icons: { icon: "/icon.svg?v=5", shortcut: "/icon.svg?v=5", apple: "/icon.svg?v=5" },
   applicationName: "ThaiBan AI",
   appleWebApp: {
     capable: true,
