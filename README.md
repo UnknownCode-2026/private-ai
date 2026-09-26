@@ -1,4 +1,4 @@
-# ThaiBan AI V1.2
+# ThaiBan AI V1.3
 
 AI ส่วนตัว ภาษาไทย ออกแบบสำหรับมือถือ ใช้ Next.js 16, React 19 และ TypeScript
 
@@ -15,6 +15,16 @@ Production: https://thaibanai.vercel.app/
 ห้ามใส่ค่าจริงใน Git หรือใช้ `NEXT_PUBLIC_` กับความลับ
 
 `npm run dev` เปิดโหมดพัฒนา ส่วน `npm run build` และ `npm start` ใช้ตรวจและรัน Production
+
+## V1.3
+
+- ปรับ UX/UI ทั้งเว็บไซต์ให้สะอาด อ่านง่าย และสม่ำเสมอขึ้น โดยคงฟังก์ชัน V1.2 ทั้งหมด
+- เพิ่ม Model Picker บนหัวแชต เพื่อสลับโมเดลได้ทันทีทั้งมือถือ แท็บเล็ต และเดสก์ท็อป
+- จัด Settings เป็น 3 หมวด: AI และโมเดล, การใช้งานและหน้าตา, ข้อมูลและความเป็นส่วนตัว
+- เปลี่ยนการเปลี่ยนชื่อและยืนยันลบแชตจาก browser prompt/confirm เป็น dialog ภายในเว็บ
+- ปรับ spacing, touch target, safe-area, composer, modal และธีมมืด/สว่าง
+- เพิ่ม E2E สำหรับ Model Picker และ dialog จัดการแชต พร้อมตรวจ responsive หลายขนาดหน้าจอ
+- อัปเดต PWA cache เป็น V1.3 โดยไม่แคชข้อมูลส่วนตัว หน้าแชต หรือ API
 
 ## V1.2
 
@@ -52,7 +62,7 @@ Production: https://thaibanai.vercel.app/
 
 ## PWA
 
-Manifest ใช้ชื่อ ThaiBan AI, standalone, ไอคอน PNG 192/512, maskable และ Apple touch icon Service worker `thaiban-ai-v1.2` ล้างแคชแบรนด์เก่าเฉพาะของแอปนี้ และเก็บเฉพาะไอคอน ไม่แคชข้อมูลส่วนตัว หน้าแชต หรือ API การสนทนากับ AI ต้องเชื่อมต่ออินเทอร์เน็ต
+Manifest ใช้ชื่อ ThaiBan AI, standalone, ไอคอน PNG 192/512, maskable และ Apple touch icon Service worker `thaiban-ai-v1.3` ล้างแคชแบรนด์เก่าเฉพาะของแอปนี้ และเก็บเฉพาะไอคอน ไม่แคชข้อมูลส่วนตัว หน้าแชต หรือ API การสนทนากับ AI ต้องเชื่อมต่ออินเทอร์เน็ต
 
 ## การเผยแพร่
 
