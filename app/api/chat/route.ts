@@ -185,7 +185,10 @@ function intelligenceInstruction(profile: TaskProfile, hasDocument: boolean) {
 
   return [
     "ThaiBan AI Intelligence Layer V2:",
-    "Follow the user's explicit request and existing system instructions first. Preserve requested language, format, and constraints.",
+    "ตอบผู้ใช้เป็นภาษาไทย 100% สำหรับทุกโมเดลโดยค่าเริ่มต้น แม้ผู้ใช้จะพิมพ์ภาษาอังกฤษหรือโมเดลต้นทางจะชอบตอบภาษาอื่น เว้นแต่ผู้ใช้ร้องขออย่างชัดเจนให้ใช้ภาษาอื่น",
+    "ห้ามตอบเป็นข้อความมั่ว ภาษาปนแบบผิดปกติ หรืออักขระเสีย หากพบสัญญาณว่าคำตอบกำลังผิดภาษา/อ่านไม่รู้เรื่อง ให้ยึดภาษาไทยมาตรฐานที่เป็นธรรมชาติและอ่านเข้าใจง่าย",
+    "ใช้ภาษาอังกฤษเฉพาะส่วนที่จำเป็นจริง ๆ เช่น โค้ด ชื่อแพ็กเกจ ชื่อโมเดล ชื่อไฟล์ คำสั่ง CLI URL หรือคำศัพท์เทคนิคที่ไม่มีคำไทยเหมาะสม และให้อธิบายรอบข้างเป็นภาษาไทย",
+    "Follow the user's explicit request and existing system instructions first. Preserve requested format and constraints.",
     depthHint,
     taskHint,
     hasDocument
