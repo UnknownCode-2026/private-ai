@@ -538,13 +538,13 @@ export async function POST(request: Request) {
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
-          Accept: "application/json",
+          Accept: "text/event-stream, application/json",
         },
         body: JSON.stringify({
           ...candidatePayload,
-          // Buffer the complete model answer before showing it. This prevents
-          // corrupted Thai chunks from reaching the UI before validation.
-          stream: false,
+          // Stream again for low first-token latency. The proxy below buffers
+          // provider chunks briefly before forwarding them to the browser.
+          stream: true,
         }),
         signal: upstreamController.signal,
       });
@@ -701,8 +701,10 @@ export async function POST(request: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         let buffer = "";
+        let pendingText = "";
         let sentVisibleText = false;
         let closed = false;
+        const SAFE_CHUNK_SIZE = 96;
 
         const close = () => {
           if (closed) return;
@@ -719,11 +721,26 @@ export async function POST(request: Request) {
             const parsed = JSON.parse(payloadText);
             const text = visibleText(parsed);
             if (text) {
-              sentVisibleText = true;
-              const safe = JSON.stringify({
-                choices: [{ delta: { content: text } }],
-              });
-              controller.enqueue(encoder.encode(`data: ${safe}\n\n`));
+              pendingText += text;
+
+              // Hold a small amount of text so broken provider fragments do
+              // not flash directly in the UI. Flush at natural boundaries or
+              // after a short chunk for responsive typing.
+              const shouldFlush =
+                pendingText.length >= SAFE_CHUNK_SIZE ||
+                /[\\n.!?。！？]\s*$/u.test(pendingText);
+
+              if (shouldFlush) {
+                const quality = thaiQuality(pendingText);
+                if (!quality.suspicious) {
+                  sentVisibleText = true;
+                  const safe = JSON.stringify({
+                    choices: [{ delta: { content: pendingText } }],
+                  });
+                  controller.enqueue(encoder.encode(`data: ${safe}\n\n`));
+                  pendingText = "";
+                }
+              }
             }
           } catch {
             // Ignore malformed/non-JSON provider events without breaking chat.
@@ -768,6 +785,18 @@ export async function POST(request: Request) {
             const line = rawLine.trim();
             if (!line.startsWith("data:")) continue;
             emitPayload(line.slice(5).trim());
+          }
+
+          if (pendingText) {
+            const quality = thaiQuality(pendingText);
+            if (!quality.suspicious) {
+              sentVisibleText = true;
+              const safe = JSON.stringify({
+                choices: [{ delta: { content: pendingText } }],
+              });
+              controller.enqueue(encoder.encode(`data: ${safe}\n\n`));
+            }
+            pendingText = "";
           }
 
           if (!sentVisibleText) {
